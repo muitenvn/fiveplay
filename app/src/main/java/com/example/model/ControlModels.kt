@@ -151,7 +151,7 @@ enum class ActionSlot(
     PAUSE("slot_pause", "Bản Đồ / Tạm Dừng", "ESC", PcKeyCatalog.KEY_ESC.id)
 }
 
-const val SANDBOX_URL = "file:///android_asset/gta_sandbox.html"
+const val DEFAULT_FIVEPLAY_URL = "https://fiveplay.lol"
 
 data class ServerPreset(
     val id: String,
@@ -163,40 +163,33 @@ data class ServerPreset(
 
 val DEFAULT_SERVER_PRESETS = listOf(
     ServerPreset(
-        id = "gta_sandbox",
-        name = "3D Los Santos Sandbox (Offline 60 FPS)",
-        url = SANDBOX_URL,
-        badge = "KHUYÊN DÙNG",
-        description = "Chơi thử ngay lập tức mượt mà: Lái siêu xe Zentorno, bắn súng, drift khói, còi xe, âm thanh sống động."
-    ),
-    ServerPreset(
         id = "fiveplay_main",
-        name = "FivePlay.lol (Máy Chủ Online Gốc)",
+        name = "FivePlay.lol (Máy Chủ Trực Tuyến)",
         url = "https://fiveplay.lol",
         badge = "CHÍNH THỨC",
-        description = "Cổng chơi GTA 5 WebGL trực tuyến gốc qua Cloud Gaming."
+        description = "Truy cập trực tiếp trang web fiveplay.lol để chơi GTA 5 với đầy đủ tính năng đám mây."
     ),
     ServerPreset(
         id = "fiveplay_fast",
-        name = "FivePlay.lol (Chế Độ Giảm Lag FPS)",
+        name = "FivePlay.lol (Chế Độ Tối Ưu FPS)",
         url = "https://fiveplay.lol/?mobile_boost=1&low_fx=1",
         badge = "MƯỢT HƠN",
-        description = "Tự động kích hoạt giả lập Pointer Lock & tối ưu bộ đệm khung hình cho điện thoại."
+        description = "Kích hoạt cờ tối ưu độ phân giải và bộ đệm WebGL cho thiết bị di động."
     )
 )
 
-data class GtaCheat(
-    val code: String,
+data class QuickChatCommand(
+    val command: String,
     val nameVi: String,
-    val effectVi: String,
-    val actionType: String
+    val descriptionVi: String
 )
 
-val GTA_CHEATS = listOf(
-    GtaCheat("nitro", "Bơm Nitro Siêu Tốc", "Gia tốc cực mạnh với lửa đuôi xanh neon", "nitro"),
-    GtaCheat("car", "Spawn Siêu Xe Zentorno", "Triệu hồi siêu xe thể thao mới ngay trước mặt", "car"),
-    GtaCheat("heal", "Hồi Máu & Giáp 100%", "Hồi phục toàn bộ thanh máu xanh lá và giáp xanh dương", "heal"),
-    GtaCheat("clear", "Xóa Sao Truy Nã", "Hủy bỏ cảnh sát truy đuổi về 0 sao", "clear"),
-    GtaCheat("weather", "Đổi Thời Tiết Hoàng Hôn/Đêm", "Chuyển đổi giữa Hoàng hôn Los Santos, Đêm Neon, và Mưa", "weather")
+val GTA_QUICK_COMMANDS = listOf(
+    QuickChatCommand("/help", "Trợ Giúp", "Mở hướng dẫn lệnh của phòng chơi"),
+    QuickChatCommand("/car", "Lấy Xe", "Gọi lệnh xe trong máy chủ"),
+    QuickChatCommand("/fix", "Sửa Xe", "Sửa chữa xe cộ khi bị hư hỏng"),
+    QuickChatCommand("/me", "Hành Động Roleplay", "Gửi tin nhắn mô tả hành động nhân vật"),
+    QuickChatCommand("/clean", "Dọn Rác", "Dọn các vật thể xung quanh nhân vật")
 )
+
 

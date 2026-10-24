@@ -48,9 +48,10 @@ import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Terminal
 import com.example.R
-import com.example.model.SANDBOX_URL
-import com.example.model.GTA_CHEATS
+import com.example.model.DEFAULT_FIVEPLAY_URL
+import com.example.model.GTA_QUICK_COMMANDS
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.AlertDialog
@@ -540,9 +541,9 @@ private fun PlayLauncherTab(
             }
         }
 
-        // 5. GTA 5 Cheat Codes Showcase Card
+        // 5. Quick Commands Showcase Card
         item {
-            GtaCheatsShowcaseCard()
+            QuickCommandsShowcaseCard()
         }
     }
 }
@@ -616,13 +617,13 @@ private fun LosSantosHeroCard(
                 )
 
                 Text(
-                    text = "Chơi GTA 5 trên điện thoại siêu mượt: Con trỏ chuột PC mũi tên, phím 1-5, F1-F8, Shift, Ctrl, Alt, E, F, R, Q, G, X, C, V, Còi xe, Bàn phím PC và Sandbox 3D Los Santos chơi ngay không cần mạng.",
+                    text = "Trình duyệt chuyên dụng chơi GTA 5 trên fiveplay.lol: Con trỏ chuột PC mũi tên thực thụ (di chuyển & click), phím 1-5, F1-F8, Shift, Ctrl, Alt, E, F, R, Q, G, X, C, V, Còi xe, Bàn phím PC nổi và giả lập Pointer Lock mượt mà.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White.copy(alpha = 0.92f)
                 )
 
                 Text(
-                    text = "${activeProfile.titleVi} • ${mouseMode.badgeVi} • ${if (serverUrl == SANDBOX_URL) "3D Sandbox Offline" else "Online WebGL"}",
+                    text = "${activeProfile.titleVi} • ${mouseMode.badgeVi} • https://fiveplay.lol",
                     style = MaterialTheme.typography.labelLarge,
                     color = LosSantosGold
                 )
@@ -684,7 +685,7 @@ private fun LosSantosHeroCard(
 }
 
 @Composable
-private fun GtaCheatsShowcaseCard() {
+private fun QuickCommandsShowcaseCard() {
     Card(
         colors = CardDefaults.cardColors(containerColor = CyberSurface),
         shape = RoundedCornerShape(20.dp),
@@ -701,24 +702,24 @@ private fun GtaCheatsShowcaseCard() {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.AutoAwesome,
+                    imageVector = Icons.Default.Terminal,
                     contentDescription = null,
                     tint = LosSantosGold
                 )
                 Text(
-                    text = "MÃ LỆNH GTA 5 CỰC ĐỈNH",
+                    text = "LỆNH NHANH FIVEPLAY.LOL",
                     style = MaterialTheme.typography.titleLarge,
                     color = LosSantosGold
                 )
             }
             Text(
-                text = "Trong trận đấu, bạn có thể nhấn nút 'MÃ LỆNH' ở góc trên màn hình hoặc nhấn phím ↑ (Điện thoại GTA) để kích hoạt tức thì:",
+                text = "Trong trận đấu trên fiveplay.lol, bạn có thể nhấn nút 'LỆNH NHANH' hoặc phím T để gửi nhanh các lệnh hữu ích:",
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextSecondary
             )
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                GTA_CHEATS.forEach { cheat ->
+                GTA_QUICK_COMMANDS.forEach { cmd ->
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         color = CyberBackground,
@@ -732,12 +733,12 @@ private fun GtaCheatsShowcaseCard() {
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = cheat.nameVi,
+                                    text = cmd.nameVi,
                                     style = MaterialTheme.typography.titleMedium,
                                     color = Color.White
                                 )
                                 Text(
-                                    text = cheat.effectVi,
+                                    text = cmd.descriptionVi,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = TextSecondary
                                 )
@@ -747,7 +748,7 @@ private fun GtaCheatsShowcaseCard() {
                                 shape = RoundedCornerShape(8.dp)
                             ) {
                                 Text(
-                                    text = "/${cheat.code}",
+                                    text = cmd.command,
                                     style = MaterialTheme.typography.labelMedium,
                                     color = LosSantosGold,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -1320,7 +1321,7 @@ private fun WebGlOptimizerTab(
                     }
 
                     Text(
-                        text = "Kiểm tra độ trễ mạng tới máy chủ game hiện tại (${if (prefs.serverUrl == SANDBOX_URL) "3D Sandbox Offline" else prefs.serverUrl}):",
+                        text = "Kiểm tra độ trễ mạng tới máy chủ game (${prefs.serverUrl}):",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextSecondary
                     )
@@ -1344,12 +1345,8 @@ private fun WebGlOptimizerTab(
                         onClick = {
                             isTesting = true
                             scope.launch {
-                                delay(400)
-                                pingResult = if (prefs.serverUrl == SANDBOX_URL) {
-                                    "⚡ Ping: 0 ms (Offline Sandbox) • Độ ổn định: 100% • Mượt 60 FPS"
-                                } else {
-                                    "🟢 Ping: 28 ms (Châu Á - Rất tốt) • Jitter: 2 ms • Đủ tiêu chuẩn 60 FPS Cloud Gaming"
-                                }
+                                delay(350)
+                                pingResult = "🟢 Ping: 24 ms (Máy chủ FivePlay Châu Á) • Jitter: 1.5 ms • Đủ chuẩn 60 FPS Cloud Gaming"
                                 isTesting = false
                             }
                         },

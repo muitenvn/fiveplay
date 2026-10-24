@@ -35,14 +35,20 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Setup Gradle 9.3.1
+      - name: Accept Android SDK Licenses
+        run: |
+          yes | sdkmanager --licenses || true
+
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.3.1"
 
       - name: Prepare Keystores for Debug & Release Signing
         run: |
-          if [ ! -f "debug.keystore" ]; then
+          if [ -f "debug.keystore.base64" ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+          elif [ ! -f "debug.keystore" ]; then
             keytool -genkeypair -v \
               -keystore debug.keystore \
               -storepass android \
@@ -68,8 +74,9 @@ jobs:
 
       - name: Ensure .env exists from .env.example
         run: |
-          if [ ! -f ".env" ] && [ -f ".env.example" ]; then
-            cp .env.example .env
+          touch .env
+          if [ -f ".env.example" ]; then
+            cat .env.example >> .env
           fi
 
       - name: Build Debug & Signed Release APKs
@@ -78,13 +85,20 @@ jobs:
           STORE_PASSWORD: android123
           KEY_PASSWORD: android123
         run: |
-          gradle assembleDebug assembleRelease --no-daemon --stacktrace
+          chmod +x gradlew || true
+          if [ -f "./gradlew" ]; then
+            ./gradlew assembleDebug assembleRelease --no-daemon --stacktrace
+          else
+            gradle assembleDebug assembleRelease --no-daemon --stacktrace
+          fi
 
       - name: Prepare Release APK Files
         run: |
           mkdir -p release-apks
-          cp app/build/outputs/apk/debug/app-debug.apk release-apks/FivePlay-Mobile-Debug.apk
-          cp app/build/outputs/apk/release/app-release.apk release-apks/FivePlay-Mobile-Release-Signed.apk
+          DEBUG_APK=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          RELEASE_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -n "$DEBUG_APK" ]; then cp "$DEBUG_APK" release-apks/FivePlay-Mobile-Debug.apk; fi
+          if [ -n "$RELEASE_APK" ]; then cp "$RELEASE_APK" release-apks/FivePlay-Mobile-Release-Signed.apk; fi
           ls -lh release-apks/
 
       - name: Upload APK Artifacts (Actions Tab)
@@ -100,14 +114,15 @@ jobs:
           tag_name: ${{ github.event.inputs.release_tag || format('v1.0.{0}', github.run_number) }}
           name: "FivePlay Mobile APK (${{ github.event.inputs.release_tag || format('v1.0.{0}', github.run_number) }})"
           body: |
-            ## FivePlay Mobile - Chơi GTA 5 (fiveplay.lol) trên Điện Thoại Android
+            ## FivePlay Mobile - Trình duyệt chơi GTA 5 trên fiveplay.lol
             ### File cài đặt APK:
-            - **`FivePlay-Mobile-Release-Signed.apk`**: Bản chính thức đã ký chứng chỉ (khuyên dùng để cài lên điện thoại).
+            - **`FivePlay-Mobile-Release-Signed.apk`**: Bản phát hành chính thức đã ký chứng chỉ (Khuyên dùng cài đặt trực tiếp lên điện thoại Android).
             - **`FivePlay-Mobile-Debug.apk`**: Bản thử nghiệm Debug.
             
-            ### Tính năng bao gồm:
-            - Con trỏ Chuột Mũi Tên PC thực thụ (rê chuột & chạm nhẹ để Click Chuột Trái) + Chế độ Khóa Tâm 3D 360°.
-            - Đầy đủ hệ thống nút GTA 5 / FiveM: `WASD`, `Shift`, `Ctrl`, `Alt`, `Space`, `F`, `E`, `R`, `Q`, `G`, `X`, `C`, `V`, `N`, `1-5`, `F1-F8`, cụm phím mũi tên Điện Thoại GTA và Bàn Phím PC nổi.
+            ### Tính năng nổi bật:
+            - Kết nối trực tiếp máy chủ **https://fiveplay.lol** với Chrome Desktop User-Agent và bộ đệm WebGL tăng tốc độ khung hình.
+            - Con trỏ Chuột Mũi Tên PC thực thụ (di chuyển & chạm nhẹ để Click Chuột Trái) + Chế độ Khóa Tâm 3D 360°.
+            - Đầy đủ hệ thống phím nóng GTA 5: `WASD`, `Shift`, `Ctrl`, `Alt`, `Space`, `F`, `E`, `R`, `Q`, `G`, `X`, `C`, `V`, `N`, `1-5`, `F1-F8`, phím điều hướng Điện thoại GTA và Bàn phím PC nổi.
           files: |
             release-apks/FivePlay-Mobile-Release-Signed.apk
             release-apks/FivePlay-Mobile-Debug.apk

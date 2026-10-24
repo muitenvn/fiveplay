@@ -15,12 +15,12 @@ import com.example.model.MovementStyle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-import com.example.model.SANDBOX_URL
+import com.example.model.DEFAULT_FIVEPLAY_URL
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "fiveplay_settings")
 
 data class FivePlayPreferences(
-    val serverUrl: String = SANDBOX_URL,
+    val serverUrl: String = DEFAULT_FIVEPLAY_URL,
     val defaultProfile: ControlProfile = ControlProfile.ON_FOOT,
     val mouseControlMode: MouseControlMode = MouseControlMode.VIRTUAL_CURSOR,
     val movementStyle: MovementStyle = MovementStyle.ANALOG_STICK,
@@ -72,7 +72,7 @@ class SettingsRepository(private val context: Context) {
         }
 
         FivePlayPreferences(
-            serverUrl = prefs[Keys.SERVER_URL] ?: SANDBOX_URL,
+            serverUrl = prefs[Keys.SERVER_URL] ?: DEFAULT_FIVEPLAY_URL,
             defaultProfile = profile,
             mouseControlMode = mouseMode,
             movementStyle = moveStyle,

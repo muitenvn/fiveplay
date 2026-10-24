@@ -13,8 +13,8 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,12 +26,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -59,20 +59,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.bridge.FivePlayJsBridge
 import com.example.bridge.FivePlayNativeCallback
+import com.example.model.DEFAULT_FIVEPLAY_URL
 import com.example.model.DEFAULT_SERVER_PRESETS
-import com.example.model.GTA_CHEATS
+import com.example.model.GTA_QUICK_COMMANDS
 import com.example.model.MouseControlMode
 import com.example.model.PcKeyCatalog
-import com.example.model.SANDBOX_URL
 import com.example.ui.components.VirtualControlsOverlay
 import com.example.ui.theme.CyberBackground
 import com.example.ui.theme.CyberSurface
 import com.example.ui.theme.DangerRed
-import com.example.ui.theme.ElectricBlue
 import com.example.ui.theme.LosSantosGold
 import com.example.ui.theme.NeonEmerald
 import com.example.ui.theme.TextSecondary
@@ -96,7 +94,7 @@ fun GameWebViewScreen(
     val coroutineScope = rememberCoroutineScope()
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var chatInputText by remember { mutableStateOf("") }
-    var showCheatsDialog by remember { mutableStateOf(false) }
+    var showCommandsDialog by remember { mutableStateOf(false) }
     var showServerSwitchDialog by remember { mutableStateOf(false) }
     var networkErrorMsg by remember { mutableStateOf<String?>(null) }
 
@@ -117,7 +115,7 @@ fun GameWebViewScreen(
             .background(CyberBackground)
             .testTag("game_webview_screen")
     ) {
-        // 1. Hardware-Accelerated WebView for 3D Sandbox or FivePlay.lol Online
+        // 1. Hardware-Accelerated WebView specifically optimized for fiveplay.lol
         AndroidView(
             modifier = Modifier
                 .fillMaxSize()
@@ -139,6 +137,7 @@ fun GameWebViewScreen(
                     settings.apply {
                         javaScriptEnabled = true
                         domStorageEnabled = true
+                        databaseEnabled = true
                         mediaPlaybackRequiresUserGesture = false
                         allowFileAccess = true
                         allowContentAccess = true
@@ -149,7 +148,7 @@ fun GameWebViewScreen(
                         setSupportZoom(false)
                         cacheMode = WebSettings.LOAD_DEFAULT
                         mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                        if (prefs.desktopUserAgent && !prefs.serverUrl.startsWith("file:///")) {
+                        if (prefs.desktopUserAgent) {
                             userAgentString = DESKTOP_CHROME_UA
                         }
                     }
@@ -192,8 +191,8 @@ fun GameWebViewScreen(
                             error: WebResourceError?
                         ) {
                             super.onReceivedError(view, request, error)
-                            if (request?.isForMainFrame == true && prefs.serverUrl != SANDBOX_URL) {
-                                networkErrorMsg = "Không thể kết nối đến máy chủ trực tuyến: ${error?.description ?: "Lỗi kết nối mạng"}"
+                            if (request?.isForMainFrame == true) {
+                                networkErrorMsg = "Không thể tải máy chủ fiveplay.lol (${error?.description ?: "Vui lòng kiểm tra kết nối mạng"})"
                             }
                         }
 
@@ -216,13 +215,13 @@ fun GameWebViewScreen(
                         }
                     }
 
-                    loadUrl(prefs.serverUrl)
+                    loadUrl(prefs.serverUrl.ifBlank { DEFAULT_FIVEPLAY_URL })
                     webViewRef = this
                 }
             },
             update = { webView ->
                 webViewRef = webView
-                val desiredUa = if (prefs.desktopUserAgent && !prefs.serverUrl.startsWith("file:///")) {
+                val desiredUa = if (prefs.desktopUserAgent) {
                     DESKTOP_CHROME_UA
                 } else {
                     WebSettings.getDefaultUserAgent(webView.context)
@@ -233,7 +232,7 @@ fun GameWebViewScreen(
             }
         )
 
-        // 2. Top Loading Progress Bar
+        // 2. Loading Progress Indicator
         AnimatedVisibility(
             visible = runtime.isPageLoading,
             modifier = Modifier
@@ -252,12 +251,12 @@ fun GameWebViewScreen(
             }
         }
 
-        // 3. Network Disconnect Fallback Card
+        // 3. Network Disconnect Banner / Retry
         if (networkErrorMsg != null) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = CyberSurface.copy(alpha = 0.95f)),
                 shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, DangerRed),
+                border = BorderStroke(1.dp, DangerRed),
                 modifier = Modifier
                     .align(Alignment.Center)
                     .padding(24.dp)
@@ -275,7 +274,7 @@ fun GameWebViewScreen(
                         modifier = Modifier.size(36.dp)
                     )
                     Text(
-                        text = "MẤT KẾT NỐI MÁY CHỦ ONLINE",
+                        text = "KHÔNG THỂ KẾT NỐI FIVEPLAY.LOL",
                         style = MaterialTheme.typography.titleMedium,
                         color = DangerRed
                     )
@@ -284,22 +283,34 @@ fun GameWebViewScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color.White.copy(alpha = 0.8f)
                     )
-                    Button(
-                        onClick = {
-                            networkErrorMsg = null
-                            viewModel.saveServerUrl(SANDBOX_URL)
-                            webViewRef?.loadUrl(SANDBOX_URL)
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Chuyển Sang 3D Los Santos Sandbox (Offline 60 FPS)", color = Color.Black)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Button(
+                            onClick = {
+                                networkErrorMsg = null
+                                webViewRef?.reload()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.Black)
+                            Spacer(modifier = Modifier.size(6.dp))
+                            Text("Tải Lại Trang", color = Color.Black)
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.exitToHub()
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, LosSantosGold)
+                        ) {
+                            Text("Về Sảnh", color = LosSantosGold)
+                        }
                     }
                 }
             }
         }
 
-        // 4. Multi-touch Virtual Gamepad, Full GTA 5 Keys & Virtual PC Mouse Cursor Overlay
+        // 4. Multi-touch Virtual Gamepad, GTA 5 Keys & Virtual PC Mouse Cursor Overlay
         VirtualControlsOverlay(
             uiState = uiState,
             onKeyStateChanged = { spec, isDown ->
@@ -382,7 +393,7 @@ fun GameWebViewScreen(
             }
         )
 
-        // 5. Floating Quick Cheat & Server Switch Buttons
+        // 5. Floating Quick Action Buttons on top
         Row(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -392,11 +403,11 @@ fun GameWebViewScreen(
             Surface(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
-                    .clickable { showCheatsDialog = true }
-                    .testTag("open_cheats_hud_btn"),
+                    .clickable { showCommandsDialog = true }
+                    .testTag("open_commands_hud_btn"),
                 color = CyberSurface.copy(alpha = 0.85f),
                 shape = RoundedCornerShape(12.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, LosSantosGold)
+                border = BorderStroke(1.dp, LosSantosGold)
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -404,13 +415,13 @@ fun GameWebViewScreen(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Bolt,
-                        contentDescription = "Mã Lệnh",
+                        imageVector = Icons.Default.Terminal,
+                        contentDescription = "Lệnh Nhanh",
                         tint = LosSantosGold,
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
-                        text = "MÃ LỆNH",
+                        text = "LỆNH NHANH",
                         style = MaterialTheme.typography.labelSmall,
                         color = LosSantosGold
                     )
@@ -424,7 +435,7 @@ fun GameWebViewScreen(
                     .testTag("switch_server_hud_btn"),
                 color = CyberSurface.copy(alpha = 0.85f),
                 shape = RoundedCornerShape(12.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, NeonEmerald)
+                border = BorderStroke(1.dp, NeonEmerald)
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -433,12 +444,12 @@ fun GameWebViewScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Language,
-                        contentDescription = "Đổi Server",
+                        contentDescription = "fiveplay.lol",
                         tint = NeonEmerald,
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
-                        text = if (prefs.serverUrl == SANDBOX_URL) "3D SANDBOX" else "ONLINE",
+                        text = "FIVEPLAY.LOL",
                         style = MaterialTheme.typography.labelSmall,
                         color = NeonEmerald
                     )
@@ -452,23 +463,29 @@ fun GameWebViewScreen(
                 onDismissRequest = { viewModel.setShowQuickChat(false) },
                 containerColor = CyberSurface,
                 title = {
-                    Text(
-                        text = "Gõ Chat / Lệnh Phím (T & Enter)",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = NeonEmerald
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Default.ChatBubbleOutline, contentDescription = null, tint = NeonEmerald)
+                        Text(
+                            text = "Gõ Chat / Nhập Lệnh (T & Enter)",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = NeonEmerald
+                        )
+                    }
                 },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
-                            text = "Nhập nội dung chat, tên hoặc mã lệnh GTA rồi nhấn Gửi:",
+                            text = "Nhập nội dung tin nhắn chat hoặc nickname gửi thẳng vào fiveplay.lol:",
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color.White.copy(alpha = 0.8f)
                         )
                         OutlinedTextField(
                             value = chatInputText,
                             onValueChange = { chatInputText = it },
-                            placeholder = { Text("Ví dụ: /car zentorno hoặc Xin chào Los Santos!") },
+                            placeholder = { Text("Ví dụ: /help hoặc Xin chào phòng chơi!") },
                             singleLine = true,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -524,19 +541,19 @@ fun GameWebViewScreen(
             )
         }
 
-        // 7. GTA Cheats In-Game Modal
-        if (showCheatsDialog) {
+        // 7. GTA Quick Commands Modal
+        if (showCommandsDialog) {
             AlertDialog(
-                onDismissRequest = { showCheatsDialog = false },
+                onDismissRequest = { showCommandsDialog = false },
                 containerColor = CyberSurface,
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = LosSantosGold)
+                        Icon(Icons.Default.Terminal, contentDescription = null, tint = LosSantosGold)
                         Text(
-                            text = "MÃ LỆNH GTA 5 NHANH",
+                            text = "LỆNH NHANH FIVEPLAY.LOL",
                             style = MaterialTheme.typography.titleLarge,
                             color = LosSantosGold
                         )
@@ -544,19 +561,18 @@ fun GameWebViewScreen(
                 },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        GTA_CHEATS.forEach { cheat ->
+                        GTA_QUICK_COMMANDS.forEach { cmd ->
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
                                     .clickable {
-                                        FivePlayJsBridge.triggerCheat(webViewRef, cheat.actionType)
-                                        FivePlayJsBridge.dispatchChatMessage(webViewRef, "/${cheat.actionType}")
-                                        showCheatsDialog = false
+                                        FivePlayJsBridge.dispatchChatMessage(webViewRef, cmd.command)
+                                        showCommandsDialog = false
                                     },
                                 color = CyberBackground,
                                 shape = RoundedCornerShape(10.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonEmerald.copy(alpha = 0.4f))
+                                border = BorderStroke(1.dp, NeonEmerald.copy(alpha = 0.4f))
                             ) {
                                 Row(
                                     modifier = Modifier.padding(10.dp),
@@ -565,18 +581,18 @@ fun GameWebViewScreen(
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = cheat.nameVi,
+                                            text = cmd.nameVi,
                                             style = MaterialTheme.typography.titleSmall,
                                             color = Color.White
                                         )
                                         Text(
-                                            text = cheat.effectVi,
+                                            text = cmd.descriptionVi,
                                             style = MaterialTheme.typography.bodySmall,
                                             color = TextSecondary
                                         )
                                     }
                                     Text(
-                                        text = "KÍCH HOẠT",
+                                        text = cmd.command,
                                         style = MaterialTheme.typography.labelSmall,
                                         color = NeonEmerald
                                     )
@@ -586,7 +602,7 @@ fun GameWebViewScreen(
                     }
                 },
                 confirmButton = {
-                    TextButton(onClick = { showCheatsDialog = false }) {
+                    TextButton(onClick = { showCommandsDialog = false }) {
                         Text("Đóng", color = Color.White)
                     }
                 }
@@ -600,7 +616,7 @@ fun GameWebViewScreen(
                 containerColor = CyberSurface,
                 title = {
                     Text(
-                        text = "CHỌN PHÒNG CHƠI / MÁY CHỦ",
+                        text = "CHỌN MÁY CHỦ FIVEPLAY",
                         style = MaterialTheme.typography.titleLarge,
                         color = NeonEmerald
                     )
@@ -621,7 +637,7 @@ fun GameWebViewScreen(
                                     },
                                 color = if (isSelected) NeonEmerald.copy(alpha = 0.2f) else CyberBackground,
                                 shape = RoundedCornerShape(10.dp),
-                                border = androidx.compose.foundation.BorderStroke(
+                                border = BorderStroke(
                                     1.dp,
                                     if (isSelected) NeonEmerald else Color.Transparent
                                 )
