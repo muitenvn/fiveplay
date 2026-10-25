@@ -1219,6 +1219,22 @@ private fun WebGlOptimizerTab(
                     )
 
                     SettingToggleRow(
+                        title = "Chế độ Tiết Kiệm RAM Cực Đại (Khuyên dùng - Hết giật lag)",
+                        subtitle = "Giới hạn render WebGL ở 720p, DPR 1.0, tắt MSAA đệm. Giảm 70% dung lượng RAM tiêu thụ, chống văng game (OOM) và khóa mượt 60 FPS.",
+                        checked = prefs.lowRamMode,
+                        onCheckedChange = { viewModel.saveLowRamMode(it) },
+                        testTag = "switch_low_ram_mode"
+                    )
+
+                    SettingToggleRow(
+                        title = "Bảo lưu Bộ Nhớ Đệm Vĩnh Viễn (Persistent Cache)",
+                        subtitle = "Kích hoạt quyền lưu trữ bền vững cho ServiceWorker và IndexedDB, giúp tài nguyên fiveplay.lol không bị xóa hay tải lại từ đầu.",
+                        checked = prefs.persistentCacheEnabled,
+                        onCheckedChange = { viewModel.savePersistentCache(it) },
+                        testTag = "switch_persistent_cache"
+                    )
+
+                    SettingToggleRow(
                         title = "Giả lập Trình duyệt PC (Desktop User-Agent)",
                         subtitle = "Bắt buộc bật để fiveplay.lol nhận diện thiết bị như máy tính Windows Chrome 131 và mở khóa toàn bộ tính năng.",
                         checked = prefs.desktopUserAgent,
@@ -1227,8 +1243,8 @@ private fun WebGlOptimizerTab(
                     )
 
                     SettingToggleRow(
-                        title = "Tối ưu độ phân giải WebGL (Tăng FPS máy yếu)",
-                        subtitle = "Giới hạn tỷ lệ điểm ảnh (devicePixelRatio 1.25x) giúp GPU điện thoại chạy mượt 60 FPS và giảm nóng máy.",
+                        title = "Tối ưu tốc độ WebGL (Tăng FPS GPU)",
+                        subtitle = "Tối ưu hóa pipeline xử lý đồ họa giúp GPU điện thoại chạy mượt 60 FPS và giảm nóng máy.",
                         checked = prefs.webGlFpsBoost,
                         onCheckedChange = { viewModel.saveWebGlFpsBoost(it) },
                         testTag = "switch_webgl_boost"

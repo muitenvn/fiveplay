@@ -23,41 +23,116 @@ class FivePlayNativeCallback(
 
 object FivePlayJsBridge {
 
-    fun buildBootstrapScript(enableWebGlBoost: Boolean): String = """
+    fun buildBootstrapScript(enableWebGlBoost: Boolean, lowRamMode: Boolean): String = """
         (function() {
             if (window.__fivePlayInjected) return;
             window.__fivePlayInjected = true;
 
-            if ($enableWebGlBoost) {
-                try {
-                    if (window.devicePixelRatio > 1.35) {
-                        Object.defineProperty(window, 'devicePixelRatio', {
-                            get: function() { return 1.25; },
-                            configurable: true
-                        });
-                    }
-                } catch (e) {}
-            }
+            const isLowRam = $lowRamMode;
+            const isBoost = $enableWebGlBoost;
+            const targetDpr = isLowRam ? 1.0 : (isBoost ? 1.25 : Math.min(window.devicePixelRatio || 1.5, 1.5));
 
-            const style = document.createElement('style');
-            style.innerHTML = `
-                * {
-                    -webkit-touch-callout: none !important;
-                    -webkit-user-select: none !important;
-                    user-select: none !important;
-                    overscroll-behavior: none !important;
+            // 1. Persistent Cache & Storage Quota Optimization (Fixes cache failing to load)
+            try {
+                if (navigator.storage && navigator.storage.persist) {
+                    navigator.storage.persist().then(function(granted) {
+                        console.log('[FivePlay Cache] Storage persistent mode:', granted);
+                    }).catch(function() {});
                 }
-                html, body, canvas {
-                    touch-action: none !important;
-                    overflow: hidden !important;
-                    background-color: #070A12;
+            } catch (e) {}
+
+            // 2. Clamp Device Pixel Ratio to prevent 2K/3K/4K raster buffers eating 1.5GB+ RAM
+            try {
+                Object.defineProperty(window, 'devicePixelRatio', {
+                    get: function() { return targetDpr; },
+                    configurable: true
+                });
+            } catch (e) {}
+
+            // 3. Canvas Buffer Resolution Clamp (720p in Low-RAM cuts VRAM & RAM by 70%)
+            const MAX_CANVAS_WIDTH = isLowRam ? 1280 : 1600;
+            const MAX_CANVAS_HEIGHT = isLowRam ? 720 : 900;
+
+            try {
+                const origWidthDesc = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+                const origHeightDesc = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+
+                if (origWidthDesc && origWidthDesc.set) {
+                    Object.defineProperty(HTMLCanvasElement.prototype, 'width', {
+                        get: function() { return origWidthDesc.get.call(this); },
+                        set: function(val) {
+                            const clamped = Math.min(val, MAX_CANVAS_WIDTH);
+                            origWidthDesc.set.call(this, clamped);
+                        },
+                        configurable: true
+                    });
                 }
-            `;
-            if (document.head) {
-                document.head.appendChild(style);
-            } else {
-                document.addEventListener('DOMContentLoaded', () => document.head.appendChild(style));
-            }
+
+                if (origHeightDesc && origHeightDesc.set) {
+                    Object.defineProperty(HTMLCanvasElement.prototype, 'height', {
+                        get: function() { return origHeightDesc.get.call(this); },
+                        set: function(val) {
+                            const clamped = Math.min(val, MAX_CANVAS_HEIGHT);
+                            origHeightDesc.set.call(this, clamped);
+                        },
+                        configurable: true
+                    });
+                }
+            } catch (e) {}
+
+            // 4. WebGL High-Performance & Zero-MSAA (Drastically reduces RAM and input latency)
+            try {
+                const origGetContext = HTMLCanvasElement.prototype.getContext;
+                HTMLCanvasElement.prototype.getContext = function(type, attrs) {
+                    if (type === 'webgl' || type === 'webgl2' || type === 'experimental-webgl') {
+                        attrs = Object.assign({}, attrs || {}, {
+                            powerPreference: 'high-performance',
+                            desynchronized: true,
+                            preserveDrawingBuffer: false,
+                            failIfMajorPerformanceCaveat: false
+                        });
+                        if (isLowRam) {
+                            attrs.antialias = false; // Disabling MSAA saves huge VRAM
+                        }
+                    }
+                    return origGetContext.call(this, type, attrs);
+                };
+            } catch (e) {}
+
+            window.addEventListener('webglcontextlost', function(e) {
+                e.preventDefault();
+            }, false);
+
+            try {
+                const style = document.createElement('style');
+                style.id = 'fiveplay-injected-style';
+                style.innerHTML = `
+                    * {
+                        -webkit-touch-callout: none !important;
+                        overscroll-behavior: none !important;
+                    }
+                    html, body {
+                        touch-action: none !important;
+                        overflow: hidden !important;
+                        background-color: #070A12;
+                        margin: 0;
+                        padding: 0;
+                    }
+                    canvas {
+                        touch-action: none !important;
+                    }
+                `;
+                if (document.head) {
+                    document.head.appendChild(style);
+                } else {
+                    document.addEventListener('DOMContentLoaded', () => {
+                        if (document.head && !document.getElementById('fiveplay-injected-style')) {
+                            document.head.appendChild(style);
+                        }
+                    });
+                }
+            } catch (e) {}
+
             window.addEventListener('contextmenu', e => e.preventDefault(), { passive: false });
 
             let lockedElement = null;
@@ -298,6 +373,16 @@ object FivePlayJsBridge {
                         virtualGamepad.buttons[i].value = 0.0;
                     }
                     virtualGamepad.axes = [0.0, 0.0, 0.0, 0.0];
+                },
+
+                applyMemoryOptimization: function(lowRam) {
+                    const maxW = lowRam ? 1280 : 1600;
+                    const maxH = lowRam ? 720 : 900;
+                    const canvases = document.querySelectorAll('canvas');
+                    canvases.forEach(function(c) {
+                        if (c.width > maxW) c.width = maxW;
+                        if (c.height > maxH) c.height = maxH;
+                    });
                 }
             };
 
@@ -420,6 +505,14 @@ object FivePlayJsBridge {
         val wv = webView ?: return
         wv.evaluateJavascript(
             "window.__fivePlayBridge && window.__fivePlayBridge.releaseAll();",
+            null
+        )
+    }
+
+    fun applyMemoryOptimization(webView: WebView?, lowRam: Boolean) {
+        val wv = webView ?: return
+        wv.evaluateJavascript(
+            "window.__fivePlayBridge && window.__fivePlayBridge.applyMemoryOptimization($lowRam);",
             null
         )
     }

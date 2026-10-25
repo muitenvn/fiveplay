@@ -292,6 +292,12 @@ class FivePlayViewModel(application: Application) : AndroidViewModel(application
     fun saveHapticFeedback(enabled: Boolean) = viewModelScope.launch { repository.updateHapticFeedback(enabled) }
     fun saveDesktopUserAgent(enabled: Boolean) = viewModelScope.launch { repository.updateDesktopUserAgent(enabled) }
     fun saveWebGlFpsBoost(enabled: Boolean) = viewModelScope.launch { repository.updateWebGlFpsBoost(enabled) }
+    fun saveLowRamMode(enabled: Boolean) = viewModelScope.launch { repository.updateLowRamMode(enabled) }
+    fun savePersistentCache(enabled: Boolean) = viewModelScope.launch { repository.updatePersistentCache(enabled) }
+    fun toggleLowRamMode() {
+        val next = !uiState.value.prefs.lowRamMode
+        saveLowRamMode(next)
+    }
     fun saveAutoSprintOnEdge(enabled: Boolean) = viewModelScope.launch { repository.updateAutoSprintOnEdge(enabled) }
     fun saveShowQuickTopBar(enabled: Boolean) = viewModelScope.launch { repository.updateShowQuickTopBar(enabled) }
     fun saveShowPhoneArrows(enabled: Boolean) = viewModelScope.launch { repository.updateShowPhoneArrows(enabled) }

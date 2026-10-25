@@ -2,12 +2,16 @@ package com.example.ui.screens
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.os.Build
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.ServiceWorkerClient
+import android.webkit.ServiceWorkerController
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -58,7 +62,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.bridge.FivePlayJsBridge
 import com.example.bridge.FivePlayNativeCallback
@@ -74,6 +80,7 @@ import com.example.ui.theme.DangerRed
 import com.example.ui.theme.LosSantosGold
 import com.example.ui.theme.NeonEmerald
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.ViceMagenta
 import com.example.viewmodel.FivePlayUiState
 import com.example.viewmodel.FivePlayViewModel
 import kotlinx.coroutines.delay
@@ -131,6 +138,23 @@ fun GameWebViewScreen(
                     isFocusable = true
                     isFocusableInTouchMode = true
 
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        try {
+                            val swController = ServiceWorkerController.getInstance()
+                            swController.serviceWorkerWebSettings.apply {
+                                cacheMode = WebSettings.LOAD_DEFAULT
+                                allowContentAccess = true
+                                allowFileAccess = true
+                                blockNetworkLoads = false
+                            }
+                            swController.setServiceWorkerClient(object : ServiceWorkerClient() {
+                                override fun shouldInterceptRequest(request: WebResourceRequest?): WebResourceResponse? {
+                                    return super.shouldInterceptRequest(request)
+                                }
+                            })
+                        } catch (_: Exception) {}
+                    }
+
                     CookieManager.getInstance().setAcceptCookie(true)
                     CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
 
@@ -141,6 +165,10 @@ fun GameWebViewScreen(
                         mediaPlaybackRequiresUserGesture = false
                         allowFileAccess = true
                         allowContentAccess = true
+                        @Suppress("DEPRECATION")
+                        allowFileAccessFromFileURLs = true
+                        @Suppress("DEPRECATION")
+                        allowUniversalAccessFromFileURLs = true
                         loadWithOverviewMode = true
                         useWideViewPort = true
                         builtInZoomControls = false
@@ -148,6 +176,13 @@ fun GameWebViewScreen(
                         setSupportZoom(false)
                         cacheMode = WebSettings.LOAD_DEFAULT
                         mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                        loadsImagesAutomatically = true
+                        blockNetworkImage = false
+                        offscreenPreRaster = true
+                        saveFormData = false
+                        setGeolocationEnabled(false)
+                        @Suppress("DEPRECATION")
+                        setRenderPriority(WebSettings.RenderPriority.HIGH)
                         if (prefs.desktopUserAgent) {
                             userAgentString = DESKTOP_CHROME_UA
                         }
@@ -170,17 +205,14 @@ fun GameWebViewScreen(
                             super.onPageStarted(view, url, favicon)
                             networkErrorMsg = null
                             viewModel.onPageLoadProgress(15, true)
-                            view?.evaluateJavascript(
-                                FivePlayJsBridge.buildBootstrapScript(prefs.webGlFpsBoost),
-                                null
-                            )
                         }
 
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
+                            CookieManager.getInstance().flush()
                             viewModel.onPageLoadProgress(100, false)
                             view?.evaluateJavascript(
-                                FivePlayJsBridge.buildBootstrapScript(prefs.webGlFpsBoost),
+                                FivePlayJsBridge.buildBootstrapScript(prefs.webGlFpsBoost, prefs.lowRamMode),
                                 null
                             )
                         }
@@ -206,12 +238,6 @@ fun GameWebViewScreen(
                         override fun onProgressChanged(view: WebView?, newProgress: Int) {
                             super.onProgressChanged(view, newProgress)
                             viewModel.onPageLoadProgress(newProgress, newProgress < 100)
-                            if (newProgress >= 45) {
-                                view?.evaluateJavascript(
-                                    FivePlayJsBridge.buildBootstrapScript(prefs.webGlFpsBoost),
-                                    null
-                                )
-                            }
                         }
                     }
 
@@ -229,25 +255,97 @@ fun GameWebViewScreen(
                 if (webView.settings.userAgentString != desiredUa) {
                     webView.settings.userAgentString = desiredUa
                 }
+                FivePlayJsBridge.applyMemoryOptimization(webView, prefs.lowRamMode)
             }
         )
 
-        // 2. Loading Progress Indicator
+        // 2. High-Speed Asset Loading HUD (Shows clear progress while downloading fiveplay.lol assets)
         AnimatedVisibility(
-            visible = runtime.isPageLoading,
+            visible = runtime.isPageLoading && !runtime.hasGameCanvas,
             modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.TopCenter)
+                .align(Alignment.Center)
+                .padding(24.dp)
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                LinearProgressIndicator(
-                    progress = { (runtime.pageLoadingProgress / 100f).coerceIn(0.05f, 1f) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(3.dp),
-                    color = NeonEmerald,
-                    trackColor = CyberSurface
-                )
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CyberSurface.copy(alpha = 0.94f)),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.5.dp, NeonEmerald.copy(alpha = 0.7f)),
+                modifier = Modifier
+                    .fillMaxWidth(0.85f)
+                    .testTag("game_loading_card")
+            ) {
+                Column(
+                    modifier = Modifier.padding(22.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "ĐANG TẢI TÀI NGUYÊN GTA 5 (FIVEPLAY.LOL)",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = NeonEmerald,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text(
+                        text = "Đang tối ưu bộ nhớ đệm Chromium và truyền luồng tài nguyên WebGL...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.75f)
+                    )
+
+                    LinearProgressIndicator(
+                        progress = { (runtime.pageLoadingProgress / 100f).coerceIn(0.1f, 1f) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = NeonEmerald,
+                        trackColor = Color(0xFF131A2A)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${runtime.pageLoadingProgress}%",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = LosSantosGold,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = {
+                                    webViewRef?.clearCache(true)
+                                    webViewRef?.reload()
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, ViceMagenta.copy(alpha = 0.7f))
+                            ) {
+                                Text("Làm Mới Cache", color = ViceMagenta, fontSize = 11.sp)
+                            }
+
+                            OutlinedButton(
+                                onClick = { webViewRef?.reload() },
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.4f))
+                            ) {
+                                Text("Tải Lại", color = Color.White, fontSize = 11.sp)
+                            }
+
+                            Button(
+                                onClick = {
+                                    viewModel.onPageLoadProgress(100, false)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text("Bỏ Qua Chờ", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -390,72 +488,11 @@ fun GameWebViewScreen(
             onExitToHub = {
                 FivePlayJsBridge.releaseAllInputs(webViewRef)
                 viewModel.exitToHub()
-            }
+            },
+            onOpenCommands = { showCommandsDialog = true },
+            onSwitchServer = { showServerSwitchDialog = true },
+            onToggleLowRam = { viewModel.toggleLowRamMode() }
         )
-
-        // 5. Floating Quick Action Buttons on top
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 10.dp, end = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Surface(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { showCommandsDialog = true }
-                    .testTag("open_commands_hud_btn"),
-                color = CyberSurface.copy(alpha = 0.85f),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, LosSantosGold)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Terminal,
-                        contentDescription = "Lệnh Nhanh",
-                        tint = LosSantosGold,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = "LỆNH NHANH",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = LosSantosGold
-                    )
-                }
-            }
-
-            Surface(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { showServerSwitchDialog = true }
-                    .testTag("switch_server_hud_btn"),
-                color = CyberSurface.copy(alpha = 0.85f),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, NeonEmerald)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Language,
-                        contentDescription = "fiveplay.lol",
-                        tint = NeonEmerald,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = "FIVEPLAY.LOL",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = NeonEmerald
-                    )
-                }
-            }
-        }
 
         // 6. Quick Chat / Keyboard Command Modal
         if (runtime.showQuickChatDialog) {

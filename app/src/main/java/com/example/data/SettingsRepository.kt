@@ -31,9 +31,11 @@ data class FivePlayPreferences(
     val hapticFeedback: Boolean = true,
     val desktopUserAgent: Boolean = true,
     val webGlFpsBoost: Boolean = true,
+    val lowRamMode: Boolean = true,
+    val persistentCacheEnabled: Boolean = true,
     val autoSprintOnEdge: Boolean = true,
-    val showQuickTopBar: Boolean = true,
-    val showPhoneArrows: Boolean = true,
+    val showQuickTopBar: Boolean = false,
+    val showPhoneArrows: Boolean = false,
     val slotKeyBindings: Map<ActionSlot, String> = ActionSlot.entries.associateWith { it.defaultKeyId }
 )
 
@@ -51,6 +53,8 @@ class SettingsRepository(private val context: Context) {
         val HAPTIC_FEEDBACK = booleanPreferencesKey("haptic_feedback")
         val DESKTOP_USER_AGENT = booleanPreferencesKey("desktop_user_agent")
         val WEBGL_FPS_BOOST = booleanPreferencesKey("webgl_fps_boost")
+        val LOW_RAM_MODE = booleanPreferencesKey("low_ram_mode")
+        val PERSISTENT_CACHE = booleanPreferencesKey("persistent_cache")
         val AUTO_SPRINT_ON_EDGE = booleanPreferencesKey("auto_sprint_on_edge")
         val SHOW_QUICK_TOP_BAR = booleanPreferencesKey("show_quick_top_bar")
         val SHOW_PHONE_ARROWS = booleanPreferencesKey("show_phone_arrows")
@@ -83,9 +87,11 @@ class SettingsRepository(private val context: Context) {
             hapticFeedback = prefs[Keys.HAPTIC_FEEDBACK] ?: true,
             desktopUserAgent = prefs[Keys.DESKTOP_USER_AGENT] ?: true,
             webGlFpsBoost = prefs[Keys.WEBGL_FPS_BOOST] ?: true,
+            lowRamMode = prefs[Keys.LOW_RAM_MODE] ?: true,
+            persistentCacheEnabled = prefs[Keys.PERSISTENT_CACHE] ?: true,
             autoSprintOnEdge = prefs[Keys.AUTO_SPRINT_ON_EDGE] ?: true,
-            showQuickTopBar = prefs[Keys.SHOW_QUICK_TOP_BAR] ?: true,
-            showPhoneArrows = prefs[Keys.SHOW_PHONE_ARROWS] ?: true,
+            showQuickTopBar = prefs[Keys.SHOW_QUICK_TOP_BAR] ?: false,
+            showPhoneArrows = prefs[Keys.SHOW_PHONE_ARROWS] ?: false,
             slotKeyBindings = bindings
         )
     }
@@ -138,6 +144,14 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun updateWebGlFpsBoost(enabled: Boolean) {
         context.dataStore.edit { it[Keys.WEBGL_FPS_BOOST] = enabled }
+    }
+
+    suspend fun updateLowRamMode(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.LOW_RAM_MODE] = enabled }
+    }
+
+    suspend fun updatePersistentCache(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.PERSISTENT_CACHE] = enabled }
     }
 
     suspend fun updateAutoSprintOnEdge(enabled: Boolean) {
