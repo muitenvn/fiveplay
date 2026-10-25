@@ -96,9 +96,11 @@ import androidx.compose.ui.unit.sp
 import com.example.model.ActionSlot
 import com.example.model.ControlProfile
 import com.example.model.DEFAULT_SERVER_PRESETS
+import com.example.model.InGameControlStyle
 import com.example.model.MouseControlMode
 import com.example.model.MovementStyle
 import com.example.model.PcKeyCatalog
+import com.example.model.TopHudStyle
 import com.example.ui.components.MouseLookTouchpad
 import com.example.ui.components.TacticalKeyButton
 import com.example.ui.components.VirtualAnalogStick
@@ -967,6 +969,103 @@ private fun ControlsKeymapperTab(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // 0. Preset Selectors: 4 In-game Control Layouts & 4 Top HUD Styles
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CyberSurface),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.5.dp, NeonEmerald.copy(alpha = 0.6f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "4 KIỂU BỐ CỤC ĐIỀU KHIỂN IN-GAME",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = NeonEmerald,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Chọn giao diện phím bấm hiển thị khi vào game (chuyển đổi linh hoạt trong game không cần tải lại):",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+
+                    InGameControlStyle.entries.forEach { style ->
+                        val isSelected = style == prefs.inGameControlStyle
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { viewModel.saveInGameControlStyle(style) }
+                                .testTag("hub_select_style_${style.name}"),
+                            color = if (isSelected) NeonEmerald.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.04f),
+                            border = BorderStroke(1.dp, if (isSelected) NeonEmerald else Color.White.copy(alpha = 0.15f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.Gamepad,
+                                    contentDescription = null,
+                                    tint = if (isSelected) NeonEmerald else Color.White.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Column {
+                                    Text(style.titleVi, color = if (isSelected) NeonEmerald else Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    Text(style.subtitleVi, color = Color.White.copy(alpha = 0.65f), fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = "4 PHONG CÁCH THANH CÔNG CỤ TRÊN CÙNG",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = LosSantosGold,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    TopHudStyle.entries.forEach { hud ->
+                        val isSelected = hud == prefs.topHudStyle
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { viewModel.saveTopHudStyle(hud) }
+                                .testTag("hub_select_hud_${hud.name}"),
+                            color = if (isSelected) LosSantosGold.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.04f),
+                            border = BorderStroke(1.dp, if (isSelected) LosSantosGold else Color.White.copy(alpha = 0.15f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.Tune,
+                                    contentDescription = null,
+                                    tint = if (isSelected) LosSantosGold else Color.White.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Column {
+                                    Text(hud.titleVi, color = if (isSelected) LosSantosGold else Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    Text(hud.subtitleVi, color = Color.White.copy(alpha = 0.65f), fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // 1. Sliders & Cluster Visibility Toggles
         item {
             Card(

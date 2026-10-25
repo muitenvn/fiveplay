@@ -7,10 +7,12 @@ import com.example.data.FivePlayPreferences
 import com.example.data.SettingsRepository
 import com.example.model.ActionSlot
 import com.example.model.ControlProfile
+import com.example.model.InGameControlStyle
 import com.example.model.MouseControlMode
 import com.example.model.MovementStyle
 import com.example.model.PcKeyCatalog
 import com.example.model.PcKeySpec
+import com.example.model.TopHudStyle
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +37,7 @@ data class RuntimeGameState(
     val showQuickChatDialog: Boolean = false,
     val showMiniPcKeyboard: Boolean = false,
     val showKeybindModalForSlot: ActionSlot? = null,
+    val showLayoutSwitcherDialog: Boolean = false,
     val pageLoadingProgress: Int = 0,
     val isPageLoading: Boolean = false,
     val currentFps: Int = 60,
@@ -305,5 +308,39 @@ class FivePlayViewModel(application: Application) : AndroidViewModel(application
         repository.updateSlotBinding(slot, keyId)
         runtimeState.update { it.copy(showKeybindModalForSlot = null) }
     }
+    fun setShowLayoutSwitcher(show: Boolean) {
+        runtimeState.update { it.copy(showLayoutSwitcherDialog = show) }
+    }
+
+    fun saveInGameControlStyle(style: InGameControlStyle) = viewModelScope.launch {
+        repository.updateInGameControlStyle(style)
+    }
+
+    fun saveTopHudStyle(style: TopHudStyle) = viewModelScope.launch {
+        repository.updateTopHudStyle(style)
+    }
+
+    fun cycleControlStyle() {
+        val current = uiState.value.prefs.inGameControlStyle
+        val next = when (current) {
+            InGameControlStyle.MINIMAL_TRANSPARENT -> InGameControlStyle.FLOATING_ARC
+            InGameControlStyle.FLOATING_ARC -> InGameControlStyle.GESTURE_IMMERSIVE
+            InGameControlStyle.GESTURE_IMMERSIVE -> InGameControlStyle.CLASSIC_GAMEPAD
+            InGameControlStyle.CLASSIC_GAMEPAD -> InGameControlStyle.MINIMAL_TRANSPARENT
+        }
+        saveInGameControlStyle(next)
+    }
+
+    fun cycleTopHudStyle() {
+        val current = uiState.value.prefs.topHudStyle
+        val next = when (current) {
+            TopHudStyle.FLOATING_FAB_DRAWER -> TopHudStyle.SLIM_PINNED_PILL
+            TopHudStyle.SLIM_PINNED_PILL -> TopHudStyle.SLIDE_SIDE_PANEL
+            TopHudStyle.SLIDE_SIDE_PANEL -> TopHudStyle.IMMERSIVE_HIDDEN
+            TopHudStyle.IMMERSIVE_HIDDEN -> TopHudStyle.FLOATING_FAB_DRAWER
+        }
+        saveTopHudStyle(next)
+    }
+
     fun resetAllBindings() = viewModelScope.launch { repository.resetAllBindings() }
 }

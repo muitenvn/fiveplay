@@ -10,8 +10,10 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.model.ActionSlot
 import com.example.model.ControlProfile
+import com.example.model.InGameControlStyle
 import com.example.model.MouseControlMode
 import com.example.model.MovementStyle
+import com.example.model.TopHudStyle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -22,6 +24,8 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 data class FivePlayPreferences(
     val serverUrl: String = DEFAULT_FIVEPLAY_URL,
     val defaultProfile: ControlProfile = ControlProfile.ON_FOOT,
+    val inGameControlStyle: InGameControlStyle = InGameControlStyle.MINIMAL_TRANSPARENT,
+    val topHudStyle: TopHudStyle = TopHudStyle.FLOATING_FAB_DRAWER,
     val mouseControlMode: MouseControlMode = MouseControlMode.VIRTUAL_CURSOR,
     val movementStyle: MovementStyle = MovementStyle.ANALOG_STICK,
     val controlOpacity: Float = 0.80f,
@@ -44,6 +48,8 @@ class SettingsRepository(private val context: Context) {
     private object Keys {
         val SERVER_URL = stringPreferencesKey("server_url")
         val DEFAULT_PROFILE = stringPreferencesKey("default_profile")
+        val IN_GAME_CONTROL_STYLE = stringPreferencesKey("in_game_control_style")
+        val TOP_HUD_STYLE = stringPreferencesKey("top_hud_style")
         val MOUSE_MODE = stringPreferencesKey("mouse_control_mode")
         val MOVEMENT_STYLE = stringPreferencesKey("movement_style")
         val CONTROL_OPACITY = floatPreferencesKey("control_opacity")
@@ -65,6 +71,12 @@ class SettingsRepository(private val context: Context) {
         val profileName = prefs[Keys.DEFAULT_PROFILE] ?: ControlProfile.ON_FOOT.name
         val profile = runCatching { ControlProfile.valueOf(profileName) }.getOrDefault(ControlProfile.ON_FOOT)
 
+        val controlStyleName = prefs[Keys.IN_GAME_CONTROL_STYLE] ?: InGameControlStyle.MINIMAL_TRANSPARENT.name
+        val controlStyle = runCatching { InGameControlStyle.valueOf(controlStyleName) }.getOrDefault(InGameControlStyle.MINIMAL_TRANSPARENT)
+
+        val topHudStyleName = prefs[Keys.TOP_HUD_STYLE] ?: TopHudStyle.FLOATING_FAB_DRAWER.name
+        val topHud = runCatching { TopHudStyle.valueOf(topHudStyleName) }.getOrDefault(TopHudStyle.FLOATING_FAB_DRAWER)
+
         val mouseModeName = prefs[Keys.MOUSE_MODE] ?: MouseControlMode.VIRTUAL_CURSOR.name
         val mouseMode = runCatching { MouseControlMode.valueOf(mouseModeName) }.getOrDefault(MouseControlMode.VIRTUAL_CURSOR)
 
@@ -78,6 +90,8 @@ class SettingsRepository(private val context: Context) {
         FivePlayPreferences(
             serverUrl = prefs[Keys.SERVER_URL] ?: DEFAULT_FIVEPLAY_URL,
             defaultProfile = profile,
+            inGameControlStyle = controlStyle,
+            topHudStyle = topHud,
             mouseControlMode = mouseMode,
             movementStyle = moveStyle,
             controlOpacity = prefs[Keys.CONTROL_OPACITY] ?: 0.80f,
@@ -108,6 +122,14 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun updateDefaultProfile(profile: ControlProfile) {
         context.dataStore.edit { it[Keys.DEFAULT_PROFILE] = profile.name }
+    }
+
+    suspend fun updateInGameControlStyle(style: InGameControlStyle) {
+        context.dataStore.edit { it[Keys.IN_GAME_CONTROL_STYLE] = style.name }
+    }
+
+    suspend fun updateTopHudStyle(style: TopHudStyle) {
+        context.dataStore.edit { it[Keys.TOP_HUD_STYLE] = style.name }
     }
 
     suspend fun updateMouseControlMode(mode: MouseControlMode) {

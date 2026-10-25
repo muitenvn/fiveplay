@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubbleOutline
@@ -259,91 +260,50 @@ fun GameWebViewScreen(
             }
         )
 
-        // 2. High-Speed Asset Loading HUD (Shows clear progress while downloading fiveplay.lol assets)
+        // 2. Sleek Non-intrusive Ambient Loading HUD (Never blocks game screen or canvas)
         AnimatedVisibility(
             visible = runtime.isPageLoading && !runtime.hasGameCanvas,
             modifier = Modifier
-                .align(Alignment.Center)
-                .padding(24.dp)
+                .align(Alignment.BottomStart)
+                .padding(16.dp)
         ) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CyberSurface.copy(alpha = 0.94f)),
-                shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.5.dp, NeonEmerald.copy(alpha = 0.7f)),
+            Surface(
+                color = CyberSurface.copy(alpha = 0.90f),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, NeonEmerald.copy(alpha = 0.6f)),
                 modifier = Modifier
-                    .fillMaxWidth(0.85f)
                     .testTag("game_loading_card")
             ) {
-                Column(
-                    modifier = Modifier.padding(22.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(NeonEmerald)
+                    )
                     Text(
-                        text = "ĐANG TẢI TÀI NGUYÊN GTA 5 (FIVEPLAY.LOL)",
-                        style = MaterialTheme.typography.titleMedium,
+                        text = "Tải GTA 5: ${runtime.pageLoadingProgress}%",
+                        style = MaterialTheme.typography.labelMedium,
                         color = NeonEmerald,
                         fontWeight = FontWeight.Bold
                     )
-
-                    Text(
-                        text = "Đang tối ưu bộ nhớ đệm Chromium và truyền luồng tài nguyên WebGL...",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.75f)
-                    )
-
                     LinearProgressIndicator(
                         progress = { (runtime.pageLoadingProgress / 100f).coerceIn(0.1f, 1f) },
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(4.dp)),
+                            .size(width = 70.dp, height = 4.dp)
+                            .clip(RoundedCornerShape(2.dp)),
                         color = NeonEmerald,
                         trackColor = Color(0xFF131A2A)
                     )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    TextButton(
+                        onClick = { viewModel.onPageLoadProgress(100, false) },
+                        modifier = Modifier.height(28.dp)
                     ) {
-                        Text(
-                            text = "${runtime.pageLoadingProgress}%",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = LosSantosGold,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(
-                                onClick = {
-                                    webViewRef?.clearCache(true)
-                                    webViewRef?.reload()
-                                },
-                                shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.dp, ViceMagenta.copy(alpha = 0.7f))
-                            ) {
-                                Text("Làm Mới Cache", color = ViceMagenta, fontSize = 11.sp)
-                            }
-
-                            OutlinedButton(
-                                onClick = { webViewRef?.reload() },
-                                shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.4f))
-                            ) {
-                                Text("Tải Lại", color = Color.White, fontSize = 11.sp)
-                            }
-
-                            Button(
-                                onClick = {
-                                    viewModel.onPageLoadProgress(100, false)
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Text("Bỏ Qua Chờ", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
+                        Text("Bỏ qua", color = LosSantosGold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -491,7 +451,12 @@ fun GameWebViewScreen(
             },
             onOpenCommands = { showCommandsDialog = true },
             onSwitchServer = { showServerSwitchDialog = true },
-            onToggleLowRam = { viewModel.toggleLowRamMode() }
+            onToggleLowRam = { viewModel.toggleLowRamMode() },
+            onCycleControlStyle = { viewModel.cycleControlStyle() },
+            onSelectControlStyle = { viewModel.saveInGameControlStyle(it) },
+            onCycleTopHudStyle = { viewModel.cycleTopHudStyle() },
+            onSelectTopHudStyle = { viewModel.saveTopHudStyle(it) },
+            onToggleLayoutSwitcher = { viewModel.setShowLayoutSwitcher(!runtime.showLayoutSwitcherDialog) }
         )
 
         // 6. Quick Chat / Keyboard Command Modal

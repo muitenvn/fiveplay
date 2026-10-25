@@ -19,31 +19,45 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.animateFloatAsState
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.filled.AdsClick
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Gamepad
 import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Mouse
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -51,7 +65,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,10 +84,12 @@ import androidx.compose.ui.unit.sp
 import com.example.model.ActionSlot
 import com.example.model.ControlProfile
 import com.example.model.GTA_QUICK_COMMANDS
+import com.example.model.InGameControlStyle
 import com.example.model.MouseControlMode
 import com.example.model.MovementStyle
 import com.example.model.PcKeyCatalog
 import com.example.model.PcKeySpec
+import com.example.model.TopHudStyle
 import com.example.ui.theme.CyberSurface
 import com.example.ui.theme.DangerRed
 import com.example.ui.theme.ElectricBlue
@@ -102,6 +120,11 @@ fun VirtualControlsOverlay(
     onOpenCommands: (() -> Unit)? = null,
     onSwitchServer: (() -> Unit)? = null,
     onToggleLowRam: (() -> Unit)? = null,
+    onCycleControlStyle: () -> Unit = {},
+    onSelectControlStyle: (InGameControlStyle) -> Unit = {},
+    onCycleTopHudStyle: () -> Unit = {},
+    onSelectTopHudStyle: (TopHudStyle) -> Unit = {},
+    onToggleLayoutSwitcher: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val prefs = uiState.prefs
@@ -112,6 +135,8 @@ fun VirtualControlsOverlay(
 
     var showToolboxDrawer by remember { mutableStateOf(false) }
     var showPhoneDpadPopup by remember { mutableStateOf(false) }
+    var localShowLayoutSwitcher by remember { mutableStateOf(false) }
+    val isSwitcherOpen = runtime.showLayoutSwitcherDialog || localShowLayoutSwitcher
 
     Box(
         modifier = modifier
@@ -145,7 +170,7 @@ fun VirtualControlsOverlay(
             modifier = Modifier.fillMaxSize()
         )
 
-        // 3. Profile-Specific Ergonomic Virtual Controls
+        // 3. User-Selected In-Game Control Layout (4 Distinct Full Presets)
         AnimatedVisibility(
             visible = runtime.controlsVisible && runtime.activeProfile != ControlProfile.TOUCH_ONLY,
             enter = fadeIn(),
@@ -153,17 +178,40 @@ fun VirtualControlsOverlay(
             modifier = Modifier.fillMaxSize()
         ) {
             when (runtime.activeProfile) {
-                ControlProfile.ON_FOOT -> SystematicOnFootControls(
-                    uiState = uiState,
-                    scale = scale,
-                    opacity = opacity,
-                    haptics = haptics,
-                    showPhoneDpad = showPhoneDpadPopup,
-                    onTogglePhoneDpad = { showPhoneDpadPopup = !showPhoneDpadPopup },
-                    onKeyStateChanged = onKeyStateChanged,
-                    onMouseDelta = { dx, dy -> onMouseDelta(dx, dy, 1000f, 600f) },
-                    onStickVector = onStickVector
-                )
+                ControlProfile.ON_FOOT -> {
+                    when (prefs.inGameControlStyle) {
+                        InGameControlStyle.MINIMAL_TRANSPARENT -> MinimalTransparentControls(
+                            uiState = uiState,
+                            scale = scale,
+                            opacity = opacity,
+                            haptics = haptics,
+                            onKeyStateChanged = onKeyStateChanged,
+                            onStickVector = onStickVector
+                        )
+                        InGameControlStyle.FLOATING_ARC -> FloatingArcControls(
+                            uiState = uiState,
+                            scale = scale,
+                            opacity = opacity,
+                            haptics = haptics,
+                            onKeyStateChanged = onKeyStateChanged,
+                            onStickVector = onStickVector
+                        )
+                        InGameControlStyle.GESTURE_IMMERSIVE -> GestureImmersiveControls(
+                            uiState = uiState,
+                            haptics = haptics,
+                            onKeyStateChanged = onKeyStateChanged,
+                            onStickVector = onStickVector
+                        )
+                        InGameControlStyle.CLASSIC_GAMEPAD -> ClassicConsoleGamepadControls(
+                            uiState = uiState,
+                            scale = scale,
+                            opacity = opacity,
+                            haptics = haptics,
+                            onKeyStateChanged = onKeyStateChanged,
+                            onStickVector = onStickVector
+                        )
+                    }
+                }
 
                 ControlProfile.DRIVING -> SystematicDrivingControls(
                     uiState = uiState,
@@ -187,22 +235,83 @@ fun VirtualControlsOverlay(
             }
         }
 
-        // 4. Compact Systematic Top-Center Control Bar (Unified, slim & non-intrusive)
-        SystematicTopPillBar(
-            uiState = uiState,
-            onCycleProfile = onCycleProfile,
-            onToggleMouseMode = onToggleMouseMode,
-            onToggleControls = onToggleControls,
-            onOpenToolbox = { showToolboxDrawer = true },
-            onToggleMiniPcKeyboard = onToggleMiniPcKeyboard,
-            onToggleOrientation = onToggleOrientation,
-            onReloadPage = onReloadPage,
-            onExitToHub = onExitToHub,
-            onToggleLowRam = onToggleLowRam,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 4.dp)
-        )
+        // 4. User-Selected Top HUD Style (4 Distinct Display Styles)
+        when (prefs.topHudStyle) {
+            TopHudStyle.FLOATING_FAB_DRAWER -> FloatingFabTopHud(
+                uiState = uiState,
+                onCycleProfile = onCycleProfile,
+                onToggleMouseMode = onToggleMouseMode,
+                onToggleControls = onToggleControls,
+                onOpenToolbox = { showToolboxDrawer = true },
+                onToggleMiniPcKeyboard = onToggleMiniPcKeyboard,
+                onToggleOrientation = onToggleOrientation,
+                onReloadPage = onReloadPage,
+                onExitToHub = onExitToHub,
+                onToggleLowRam = onToggleLowRam,
+                onToggleLayoutSwitcher = { localShowLayoutSwitcher = true },
+                modifier = Modifier.align(Alignment.TopEnd)
+            )
+
+            TopHudStyle.SLIM_PINNED_PILL -> SlimPinnedPillTopHud(
+                uiState = uiState,
+                onCycleProfile = onCycleProfile,
+                onToggleMouseMode = onToggleMouseMode,
+                onToggleControls = onToggleControls,
+                onOpenToolbox = { showToolboxDrawer = true },
+                onToggleMiniPcKeyboard = onToggleMiniPcKeyboard,
+                onReloadPage = onReloadPage,
+                onExitToHub = onExitToHub,
+                onToggleLowRam = onToggleLowRam,
+                onToggleLayoutSwitcher = { localShowLayoutSwitcher = true },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 4.dp)
+            )
+
+            TopHudStyle.SLIDE_SIDE_PANEL -> SlideSidePanelTopHud(
+                uiState = uiState,
+                onCycleProfile = onCycleProfile,
+                onToggleMouseMode = onToggleMouseMode,
+                onToggleControls = onToggleControls,
+                onToggleMiniPcKeyboard = onToggleMiniPcKeyboard,
+                onReloadPage = onReloadPage,
+                onExitToHub = onExitToHub,
+                onToggleLowRam = onToggleLowRam,
+                onToggleLayoutSwitcher = { localShowLayoutSwitcher = true },
+                modifier = Modifier.align(Alignment.CenterEnd)
+            )
+
+            TopHudStyle.IMMERSIVE_HIDDEN -> ImmersiveHiddenTopHud(
+                uiState = uiState,
+                onCycleProfile = onCycleProfile,
+                onToggleControls = onToggleControls,
+                onToggleMiniPcKeyboard = onToggleMiniPcKeyboard,
+                onReloadPage = onReloadPage,
+                onExitToHub = onExitToHub,
+                onToggleLayoutSwitcher = { localShowLayoutSwitcher = true },
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
+        }
+
+        // 5. In-Game Layout Switcher Modal (1-tap preview & switch between 4 layouts and 4 HUD styles)
+        if (isSwitcherOpen) {
+            LayoutSwitcherModal(
+                currentControlStyle = prefs.inGameControlStyle,
+                currentTopHudStyle = prefs.topHudStyle,
+                onSelectControlStyle = {
+                    onSelectControlStyle(it)
+                },
+                onSelectTopHudStyle = {
+                    onSelectTopHudStyle(it)
+                },
+                onDismiss = {
+                    localShowLayoutSwitcher = false
+                    if (runtime.showLayoutSwitcherDialog) {
+                        onToggleLayoutSwitcher()
+                    }
+                }
+            )
+        }
 
         // 5. Quick Toolbox Drawer (Bottom Sheet Card for GTA Weapons, F1-F8, Menu & Quick Commands)
         AnimatedVisibility(
@@ -1355,4 +1464,1040 @@ private fun GtaToolboxDrawer(
             }
         }
     }
+}
+
+/**
+ * Layout Style 1: Minimalist Transparent HUD.
+ * Extreme transparency, only core keys (Analog Stick, Fire, Aim, Jump, Interact, Vehicle).
+ * Keeps >90% of screen unblocked.
+ */
+@Composable
+private fun MinimalTransparentControls(
+    uiState: FivePlayUiState,
+    scale: Float,
+    opacity: Float,
+    haptics: Boolean,
+    onKeyStateChanged: (PcKeySpec, Boolean) -> Unit,
+    onStickVector: (Float, Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val prefs = uiState.prefs
+    val subtleOpacity = (opacity * 0.42f).coerceIn(0.22f, 0.65f)
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(10.dp)
+    ) {
+        // Left side: Sleek transparent analog stick
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 4.dp, bottom = 4.dp)
+        ) {
+            VirtualAnalogStick(
+                sizeDp = (116 * scale).dp,
+                opacity = subtleOpacity,
+                autoSprint = prefs.autoSprintOnEdge,
+                hapticsEnabled = haptics,
+                onKeyStateChanged = onKeyStateChanged,
+                onVectorChanged = onStickVector
+            )
+        }
+
+        // Right side: Clean, compact 4-button cluster + vehicle pill
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 4.dp, bottom = 4.dp)
+        ) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Secondary small actions (Vehicle F + Interact E)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CompactMiniKeyButton(
+                        label = "F",
+                        keySpec = uiState.resolveKeySpec(ActionSlot.VEHICLE),
+                        sizeDp = (38 * scale).dp,
+                        opacity = subtleOpacity,
+                        accentColor = LosSantosGold,
+                        hapticsEnabled = haptics,
+                        onKeyStateChanged = onKeyStateChanged,
+                        testTagName = "minimal_btn_f"
+                    )
+                    CompactMiniKeyButton(
+                        label = "E",
+                        keySpec = uiState.resolveKeySpec(ActionSlot.INTERACT),
+                        sizeDp = (38 * scale).dp,
+                        opacity = subtleOpacity,
+                        accentColor = ViceMagenta,
+                        hapticsEnabled = haptics,
+                        onKeyStateChanged = onKeyStateChanged,
+                        testTagName = "minimal_btn_e"
+                    )
+                }
+
+                // Primary combat keys: Aim, Jump, Fire
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    CompactMiniKeyButton(
+                        label = "NGẮM",
+                        keySpec = uiState.resolveKeySpec(ActionSlot.AIM),
+                        sizeDp = (44 * scale).dp,
+                        opacity = subtleOpacity,
+                        accentColor = ElectricBlue,
+                        hapticsEnabled = haptics,
+                        onKeyStateChanged = onKeyStateChanged,
+                        testTagName = "minimal_btn_aim"
+                    )
+                    CompactMiniKeyButton(
+                        label = "NHẢY",
+                        keySpec = uiState.resolveKeySpec(ActionSlot.JUMP),
+                        sizeDp = (48 * scale).dp,
+                        opacity = subtleOpacity,
+                        accentColor = LosSantosGold,
+                        hapticsEnabled = haptics,
+                        onKeyStateChanged = onKeyStateChanged,
+                        testTagName = "minimal_btn_jump"
+                    )
+                    CompactMiniKeyButton(
+                        label = "BẮN",
+                        keySpec = uiState.resolveKeySpec(ActionSlot.FIRE),
+                        sizeDp = (58 * scale).dp,
+                        opacity = (opacity * 0.65f).coerceIn(0.35f, 0.85f),
+                        accentColor = NeonEmerald,
+                        hapticsEnabled = haptics,
+                        onKeyStateChanged = onKeyStateChanged,
+                        testTagName = "minimal_btn_fire"
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Layout Style 2: Floating Stick & Compact Combat Arc.
+ * Left: Touch anywhere dynamically summons the analog joystick.
+ * Right: Buttons wrap naturally around the thumb's radial arc.
+ */
+@Composable
+private fun FloatingArcControls(
+    uiState: FivePlayUiState,
+    scale: Float,
+    opacity: Float,
+    haptics: Boolean,
+    onKeyStateChanged: (PcKeySpec, Boolean) -> Unit,
+    onStickVector: (Float, Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val prefs = uiState.prefs
+
+    Box(modifier = modifier.fillMaxSize()) {
+        // Left Half: Dynamic Floating Joystick
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(0.48f)
+                .fillMaxHeight()
+                .align(Alignment.CenterStart)
+        ) {
+            FloatingDynamicJoystick(
+                opacity = opacity,
+                autoSprint = prefs.autoSprintOnEdge,
+                hapticsEnabled = haptics,
+                onKeyStateChanged = onKeyStateChanged,
+                onVectorChanged = onStickVector
+            )
+        }
+
+        // Right side: Radial Combat Arc (Centered on comfortable thumb rest)
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 12.dp, bottom = 10.dp)
+        ) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Outer Arc: Vehicle F, Reload R, Aim RMB
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CompactMiniKeyButton(
+                        label = "XE",
+                        keySpec = uiState.resolveKeySpec(ActionSlot.VEHICLE),
+                        sizeDp = (42 * scale).dp,
+                        opacity = opacity,
+                        accentColor = LosSantosGold,
+                        hapticsEnabled = haptics,
+                        onKeyStateChanged = onKeyStateChanged,
+                        testTagName = "arc_btn_vehicle"
+                    )
+                    CompactMiniKeyButton(
+                        label = "NẠP",
+                        keySpec = uiState.resolveKeySpec(ActionSlot.RELOAD),
+                        sizeDp = (42 * scale).dp,
+                        opacity = opacity,
+                        accentColor = ElectricBlue,
+                        hapticsEnabled = haptics,
+                        onKeyStateChanged = onKeyStateChanged,
+                        testTagName = "arc_btn_reload"
+                    )
+                    CompactMiniKeyButton(
+                        label = "NGẮM",
+                        keySpec = uiState.resolveKeySpec(ActionSlot.AIM),
+                        sizeDp = (46 * scale).dp,
+                        opacity = opacity,
+                        accentColor = ViceMagenta,
+                        hapticsEnabled = haptics,
+                        onKeyStateChanged = onKeyStateChanged,
+                        testTagName = "arc_btn_aim"
+                    )
+                }
+
+                // Inner Arc: Sprint Shift, Jump Space, Fire LMB
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    CompactMiniKeyButton(
+                        label = "CHẠY",
+                        keySpec = uiState.resolveKeySpec(ActionSlot.SPRINT),
+                        sizeDp = (46 * scale).dp,
+                        opacity = opacity,
+                        accentColor = NeonEmerald,
+                        hapticsEnabled = haptics,
+                        onKeyStateChanged = onKeyStateChanged,
+                        testTagName = "arc_btn_sprint"
+                    )
+                    CompactMiniKeyButton(
+                        label = "NHẢY",
+                        keySpec = uiState.resolveKeySpec(ActionSlot.JUMP),
+                        sizeDp = (52 * scale).dp,
+                        opacity = opacity,
+                        accentColor = LosSantosGold,
+                        hapticsEnabled = haptics,
+                        onKeyStateChanged = onKeyStateChanged,
+                        testTagName = "arc_btn_jump"
+                    )
+                    CompactMiniKeyButton(
+                        label = "BẮN",
+                        keySpec = uiState.resolveKeySpec(ActionSlot.FIRE),
+                        sizeDp = (62 * scale).dp,
+                        opacity = opacity,
+                        accentColor = NeonEmerald,
+                        hapticsEnabled = haptics,
+                        onKeyStateChanged = onKeyStateChanged,
+                        testTagName = "arc_btn_fire"
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Layout Style 3: Ultra-Clean Gesture Mode.
+ * 100% buttonless screen!
+ * Left zone: Swipe to Move & Sprint.
+ * Right zone: Swipe for Camera, Double Tap to Fire, Swipe Up to Jump.
+ */
+@Composable
+private fun GestureImmersiveControls(
+    uiState: FivePlayUiState,
+    haptics: Boolean,
+    onKeyStateChanged: (PcKeySpec, Boolean) -> Unit,
+    onStickVector: (Float, Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var showGestureHint by remember { mutableStateOf(true) }
+    var showMiniActions by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        delay(3500)
+        showGestureHint = false
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        // Left 50%: Gesture Movement (Dynamic Drag)
+        FloatingDynamicJoystick(
+            opacity = 0.35f,
+            autoSprint = true,
+            hapticsEnabled = haptics,
+            onKeyStateChanged = onKeyStateChanged,
+            onVectorChanged = onStickVector,
+            modifier = Modifier
+                .fillMaxWidth(0.5f)
+                .fillMaxHeight()
+                .align(Alignment.CenterStart)
+        )
+
+        // Transient gesture guide pill
+        AnimatedVisibility(
+            visible = showGestureHint,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(16.dp)
+        ) {
+            Surface(
+                color = CyberSurface.copy(alpha = 0.85f),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, NeonEmerald.copy(alpha = 0.7f))
+            ) {
+                Text(
+                    text = "CHẾ ĐỘ CỬ CHỈ: Nửa trái vuốt di chuyển | Nửa phải xoay góc nhìn | Chạm đúp để Bắn",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = NeonEmerald,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
+        }
+
+        // Tiny discreet edge badge for secondary GTA keys (Vehicle, Phone, Reload)
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 6.dp)
+        ) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (showMiniActions) {
+                    CompactMiniKeyButton(
+                        label = "XE",
+                        keySpec = uiState.resolveKeySpec(ActionSlot.VEHICLE),
+                        sizeDp = 38.dp,
+                        opacity = 0.85f,
+                        accentColor = LosSantosGold,
+                        hapticsEnabled = haptics,
+                        onKeyStateChanged = onKeyStateChanged,
+                        testTagName = "gesture_btn_vehicle"
+                    )
+                    CompactMiniKeyButton(
+                        label = "NHẢY",
+                        keySpec = uiState.resolveKeySpec(ActionSlot.JUMP),
+                        sizeDp = 38.dp,
+                        opacity = 0.85f,
+                        accentColor = NeonEmerald,
+                        hapticsEnabled = haptics,
+                        onKeyStateChanged = onKeyStateChanged,
+                        testTagName = "gesture_btn_jump"
+                    )
+                    CompactMiniKeyButton(
+                        label = "NẠP",
+                        keySpec = uiState.resolveKeySpec(ActionSlot.RELOAD),
+                        sizeDp = 38.dp,
+                        opacity = 0.85f,
+                        accentColor = ElectricBlue,
+                        hapticsEnabled = haptics,
+                        onKeyStateChanged = onKeyStateChanged,
+                        testTagName = "gesture_btn_reload"
+                    )
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .clickable { showMiniActions = !showMiniActions }
+                        .testTag("gesture_toggle_mini_actions"),
+                    color = CyberSurface.copy(alpha = 0.6f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)),
+                    shape = CircleShape
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = if (showMiniActions) "✕" else "•••",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Layout Style 4: Classic Console Gamepad Controls (ABXY + D-Pad + Bumpers)
+ */
+@Composable
+private fun ClassicConsoleGamepadControls(
+    uiState: FivePlayUiState,
+    scale: Float,
+    opacity: Float,
+    haptics: Boolean,
+    onKeyStateChanged: (PcKeySpec, Boolean) -> Unit,
+    onStickVector: (Float, Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val prefs = uiState.prefs
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(12.dp)
+    ) {
+        // Top Shoulder Bumpers: L1 (Aim) & R1 (Fire)
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 8.dp, top = 2.dp)
+        ) {
+            CompactMiniKeyButton(
+                label = "L1 (NGẮM)",
+                keySpec = uiState.resolveKeySpec(ActionSlot.AIM),
+                sizeDp = (54 * scale).dp,
+                opacity = opacity,
+                accentColor = ViceMagenta,
+                hapticsEnabled = haptics,
+                onKeyStateChanged = onKeyStateChanged,
+                testTagName = "bumper_l1"
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(end = 8.dp, top = 2.dp)
+        ) {
+            CompactMiniKeyButton(
+                label = "R1 (BẮN)",
+                keySpec = uiState.resolveKeySpec(ActionSlot.FIRE),
+                sizeDp = (54 * scale).dp,
+                opacity = opacity,
+                accentColor = NeonEmerald,
+                hapticsEnabled = haptics,
+                onKeyStateChanged = onKeyStateChanged,
+                testTagName = "bumper_r1"
+            )
+        }
+
+        // Bottom Left: D-Pad or Analog Stick
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 6.dp, bottom = 6.dp)
+        ) {
+            if (prefs.movementStyle == MovementStyle.ANALOG_STICK) {
+                VirtualAnalogStick(
+                    sizeDp = (124 * scale).dp,
+                    opacity = opacity,
+                    autoSprint = prefs.autoSprintOnEdge,
+                    hapticsEnabled = haptics,
+                    onKeyStateChanged = onKeyStateChanged,
+                    onVectorChanged = onStickVector
+                )
+            } else {
+                ClassicGamepadDpad(
+                    scale = scale,
+                    opacity = opacity,
+                    haptics = haptics,
+                    onKeyStateChanged = onKeyStateChanged
+                )
+            }
+        }
+
+        // Bottom Right: Classic ABXY Diamond
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 6.dp, bottom = 6.dp)
+        ) {
+            ClassicGamepadAbxy(
+                scale = scale,
+                opacity = opacity,
+                haptics = haptics,
+                keyA = uiState.resolveKeySpec(ActionSlot.JUMP),
+                keyB = uiState.resolveKeySpec(ActionSlot.CROUCH),
+                keyX = uiState.resolveKeySpec(ActionSlot.RELOAD),
+                keyY = uiState.resolveKeySpec(ActionSlot.VEHICLE),
+                onKeyStateChanged = onKeyStateChanged
+            )
+        }
+    }
+}
+
+/**
+ * Top HUD Style 1: Floating FAB Quick Drawer.
+ * Auto-dims after 3s of inactivity, single tap expands tool drawer.
+ */
+@Composable
+private fun FloatingFabTopHud(
+    uiState: FivePlayUiState,
+    onCycleProfile: () -> Unit,
+    onToggleMouseMode: () -> Unit,
+    onToggleControls: () -> Unit,
+    onOpenToolbox: () -> Unit,
+    onToggleMiniPcKeyboard: () -> Unit,
+    onToggleOrientation: () -> Unit,
+    onReloadPage: () -> Unit,
+    onExitToHub: () -> Unit,
+    onToggleLowRam: (() -> Unit)?,
+    onToggleLayoutSwitcher: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var isIdle by remember { mutableStateOf(false) }
+
+    LaunchedEffect(expanded) {
+        if (!expanded) {
+            delay(3200)
+            isIdle = true
+        } else {
+            isIdle = false
+        }
+    }
+
+    val alpha by animateFloatAsState(targetValue = if (isIdle && !expanded) 0.35f else 1f, label = "fab_alpha")
+
+    Box(modifier = modifier.padding(top = 4.dp, end = 8.dp)) {
+        Column(horizontalAlignment = Alignment.End) {
+            // The Mini Circular FAB
+            Surface(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .clickable {
+                        isIdle = false
+                        expanded = !expanded
+                    }
+                    .testTag("hud_fab_btn"),
+                color = HudGlass.copy(alpha = alpha),
+                shape = CircleShape,
+                border = BorderStroke(1.2.dp, NeonEmerald.copy(alpha = 0.8f * alpha))
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Default.Close else Icons.Default.Tune,
+                        contentDescription = "Menu Công Cụ",
+                        tint = NeonEmerald.copy(alpha = alpha),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // Expanded Quick Drawer
+            AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn() + slideInVertically { -it / 2 },
+                exit = fadeOut() + slideOutVertically { -it / 2 }
+            ) {
+                Surface(
+                    color = CyberSurface.copy(alpha = 0.95f),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, NeonEmerald.copy(alpha = 0.6f)),
+                    modifier = Modifier
+                        .padding(top = 6.dp)
+                        .testTag("fab_quick_drawer")
+                ) {
+                    Column(
+                        modifier = Modifier.padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // Layout Switcher shortcut
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    expanded = false
+                                    onToggleLayoutSwitcher()
+                                }
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.Layers, contentDescription = null, tint = LosSantosGold, modifier = Modifier.size(16.dp))
+                            Text("Đổi Bố Cục Nút (1-4)", color = LosSantosGold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        // Profile Switcher (Đi Bộ / Xe / Xbox)
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable(onClick = onCycleProfile)
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.Gamepad, contentDescription = null, tint = NeonEmerald, modifier = Modifier.size(16.dp))
+                            Text(
+                                text = when (uiState.runtime.activeProfile) {
+                                    ControlProfile.ON_FOOT -> "Chế độ: Đi Bộ"
+                                    ControlProfile.DRIVING -> "Chế độ: Lái Xe"
+                                    ControlProfile.XBOX_GAMEPAD -> "Chế độ: Xbox"
+                                    ControlProfile.TOUCH_ONLY -> "Chế độ: Chuột"
+                                },
+                                color = Color.White,
+                                fontSize = 11.sp
+                            )
+                        }
+
+                        // Virtual Keyboard
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    expanded = false
+                                    onToggleMiniPcKeyboard()
+                                }
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.Keyboard, contentDescription = null, tint = ElectricBlue, modifier = Modifier.size(16.dp))
+                            Text("Bàn Phím Mini PC", color = Color.White, fontSize = 11.sp)
+                        }
+
+                        // Reload & Exit
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(onClick = onReloadPage)
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                color = CyberSurface
+                            ) {
+                                Text("Tải Lại", color = Color.White, fontSize = 11.sp)
+                            }
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(onClick = onExitToHub)
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                color = DangerRed.copy(alpha = 0.2f)
+                            ) {
+                                Text("Về Sảnh", color = DangerRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Top HUD Style 2: Slim Pinned Pill Bar (Ultra-compact 28dp height).
+ */
+@Composable
+private fun SlimPinnedPillTopHud(
+    uiState: FivePlayUiState,
+    onCycleProfile: () -> Unit,
+    onToggleMouseMode: () -> Unit,
+    onToggleControls: () -> Unit,
+    onOpenToolbox: () -> Unit,
+    onToggleMiniPcKeyboard: () -> Unit,
+    onReloadPage: () -> Unit,
+    onExitToHub: () -> Unit,
+    onToggleLowRam: (() -> Unit)?,
+    onToggleLayoutSwitcher: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val runtime = uiState.runtime
+    val prefs = uiState.prefs
+
+    Surface(
+        modifier = modifier.testTag("slim_pinned_pill_hud"),
+        color = HudGlass,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, NeonEmerald.copy(alpha = 0.45f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            // FPS badge
+            Text(
+                text = "${runtime.currentFps} FPS",
+                style = MaterialTheme.typography.labelSmall,
+                color = NeonEmerald,
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+
+            // Layout Switcher icon
+            Surface(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onToggleLayoutSwitcher)
+                    .testTag("slim_hud_switcher_btn"),
+                color = LosSantosGold.copy(alpha = 0.2f)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Icon(Icons.Default.Layers, contentDescription = null, tint = LosSantosGold, modifier = Modifier.size(12.dp))
+                    Text("Layout", color = LosSantosGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            // Low RAM toggle
+            Surface(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onToggleLowRam?.invoke() },
+                color = if (prefs.lowRamMode) NeonEmerald.copy(alpha = 0.18f) else CyberSurface
+            ) {
+                Text(
+                    text = if (prefs.lowRamMode) "RAM 720p" else "RAM Max",
+                    color = if (prefs.lowRamMode) NeonEmerald else Color.White,
+                    fontSize = 9.sp,
+                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 3.dp)
+                )
+            }
+
+            // Keyboard icon
+            IconButton(onClick = onToggleMiniPcKeyboard, modifier = Modifier.size(24.dp)) {
+                Icon(Icons.Default.Keyboard, contentDescription = "Phím", tint = ElectricBlue, modifier = Modifier.size(13.dp))
+            }
+
+            // Reload
+            IconButton(onClick = onReloadPage, modifier = Modifier.size(24.dp)) {
+                Icon(Icons.Default.Refresh, contentDescription = "Tải lại", tint = Color.White, modifier = Modifier.size(13.dp))
+            }
+
+            // Exit
+            IconButton(onClick = onExitToHub, modifier = Modifier.size(24.dp)) {
+                Icon(Icons.Default.Close, contentDescription = "Về sảnh", tint = DangerRed, modifier = Modifier.size(13.dp))
+            }
+        }
+    }
+}
+
+/**
+ * Top HUD Style 3: Slide-out Side Panel.
+ * Top of the screen is 100% empty! Pinned tab on screen edge slides panel in.
+ */
+@Composable
+private fun SlideSidePanelTopHud(
+    uiState: FivePlayUiState,
+    onCycleProfile: () -> Unit,
+    onToggleMouseMode: () -> Unit,
+    onToggleControls: () -> Unit,
+    onToggleMiniPcKeyboard: () -> Unit,
+    onReloadPage: () -> Unit,
+    onExitToHub: () -> Unit,
+    onToggleLowRam: (() -> Unit)?,
+    onToggleLayoutSwitcher: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isPanelOpen by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier.fillMaxHeight(), contentAlignment = Alignment.CenterEnd) {
+        // Tab handle at edge
+        if (!isPanelOpen) {
+            Surface(
+                modifier = Modifier
+                    .size(width = 24.dp, height = 54.dp)
+                    .clip(RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp))
+                    .clickable { isPanelOpen = true }
+                    .testTag("side_panel_pull_tab"),
+                color = CyberSurface.copy(alpha = 0.8f),
+                border = BorderStroke(1.dp, NeonEmerald.copy(alpha = 0.6f))
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.ChevronLeft,
+                        contentDescription = "Mở bảng công cụ",
+                        tint = NeonEmerald,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+
+        // Sliding Panel
+        AnimatedVisibility(
+            visible = isPanelOpen,
+            enter = slideInHorizontally { it } + fadeIn(),
+            exit = slideOutHorizontally { it } + fadeOut()
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(160.dp)
+                    .testTag("side_panel_drawer"),
+                color = CyberSurface.copy(alpha = 0.95f),
+                border = BorderStroke(1.dp, NeonEmerald.copy(alpha = 0.5f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("CÔNG CỤ", color = NeonEmerald, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        IconButton(onClick = { isPanelOpen = false }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.ChevronRight, contentDescription = "Đóng", tint = Color.White)
+                        }
+                    }
+
+                    // FPS
+                    Text("${uiState.runtime.currentFps} FPS", color = LosSantosGold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+
+                    // Layout Switcher
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                isPanelOpen = false
+                                onToggleLayoutSwitcher()
+                            },
+                        color = LosSantosGold.copy(alpha = 0.18f)
+                    ) {
+                        Text("Đổi Layout (1-4)", color = LosSantosGold, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(8.dp))
+                    }
+
+                    // Profile
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(onClick = onCycleProfile),
+                        color = NeonEmerald.copy(alpha = 0.15f)
+                    ) {
+                        Text("Đổi Profile", color = NeonEmerald, fontSize = 11.sp, modifier = Modifier.padding(8.dp))
+                    }
+
+                    // Mini PC Keyboard
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                isPanelOpen = false
+                                onToggleMiniPcKeyboard()
+                            },
+                        color = ElectricBlue.copy(alpha = 0.15f)
+                    ) {
+                        Text("Bàn Phím PC", color = ElectricBlue, fontSize = 11.sp, modifier = Modifier.padding(8.dp))
+                    }
+
+                    // Reload
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(onClick = onReloadPage),
+                        color = Color.White.copy(alpha = 0.1f)
+                    ) {
+                        Text("Tải Lại", color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(8.dp))
+                    }
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    // Exit
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(onClick = onExitToHub),
+                        color = DangerRed.copy(alpha = 0.25f)
+                    ) {
+                        Text("Về Sảnh", color = DangerRed, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(8.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Top HUD Style 4: Immersive Hidden (100% full screen game).
+ * Transient bar shows for 4.5 seconds on swipe down / back.
+ */
+@Composable
+private fun ImmersiveHiddenTopHud(
+    uiState: FivePlayUiState,
+    onCycleProfile: () -> Unit,
+    onToggleControls: () -> Unit,
+    onToggleMiniPcKeyboard: () -> Unit,
+    onReloadPage: () -> Unit,
+    onExitToHub: () -> Unit,
+    onToggleLayoutSwitcher: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isRevealed by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isRevealed) {
+        if (isRevealed) {
+            delay(4500)
+            isRevealed = false
+        }
+    }
+
+    Box(modifier = modifier.fillMaxWidth()) {
+        // Invisible top edge touch target
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(18.dp)
+                .clickable { isRevealed = true }
+        )
+
+        // The transient micro-bar
+        AnimatedVisibility(
+            visible = isRevealed,
+            enter = slideInVertically { -it } + fadeIn(),
+            exit = slideOutVertically { -it } + fadeOut(),
+            modifier = Modifier.align(Alignment.TopCenter)
+        ) {
+            Surface(
+                color = CyberSurface.copy(alpha = 0.94f),
+                shape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp),
+                border = BorderStroke(1.dp, NeonEmerald.copy(alpha = 0.7f)),
+                modifier = Modifier.padding(top = 0.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("${uiState.runtime.currentFps} FPS", color = NeonEmerald, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    TextButton(onClick = onToggleLayoutSwitcher) {
+                        Text("Đổi Layout", color = LosSantosGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                    TextButton(onClick = onToggleMiniPcKeyboard) {
+                        Text("Phím PC", color = ElectricBlue, fontSize = 10.sp)
+                    }
+                    TextButton(onClick = onReloadPage) {
+                        Text("Tải lại", color = Color.White, fontSize = 10.sp)
+                    }
+                    TextButton(onClick = onExitToHub) {
+                        Text("Thoát", color = DangerRed, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Layout Switcher Modal:
+ * Allows 1-tap switching between all 4 Control Styles and all 4 Top HUD Styles!
+ */
+@Composable
+private fun LayoutSwitcherModal(
+    currentControlStyle: InGameControlStyle,
+    currentTopHudStyle: TopHudStyle,
+    onSelectControlStyle: (InGameControlStyle) -> Unit,
+    onSelectTopHudStyle: (TopHudStyle) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = CyberSurface,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Default.Layers, contentDescription = null, tint = NeonEmerald)
+                Text("TÙY CHỈNH GIAO DIỆN IN-GAME", color = NeonEmerald, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Section 1: 4 Control Layouts
+                Text("1. BỐ CỤC NÚT BẤM (CONTROL LAYOUT):", color = LosSantosGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+
+                InGameControlStyle.entries.forEach { style ->
+                    val isSelected = style == currentControlStyle
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { onSelectControlStyle(style) }
+                            .testTag("select_control_style_${style.name}"),
+                        color = if (isSelected) NeonEmerald.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isSelected) NeonEmerald else Color.White.copy(alpha = 0.15f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isSelected) Icons.Default.Check else Icons.Default.Gamepad,
+                                contentDescription = null,
+                                tint = if (isSelected) NeonEmerald else Color.White.copy(alpha = 0.5f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Column {
+                                Text(style.titleVi, color = if (isSelected) NeonEmerald else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text(style.subtitleVi, color = Color.White.copy(alpha = 0.65f), fontSize = 10.sp)
+                            }
+                        }
+                    }
+                }
+
+                // Section 2: 4 Top HUD Styles
+                Text("2. PHONG CÁCH THANH CÔNG CỤ (TOP HUD):", color = LosSantosGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+
+                TopHudStyle.entries.forEach { hud ->
+                    val isSelected = hud == currentTopHudStyle
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { onSelectTopHudStyle(hud) }
+                            .testTag("select_top_hud_${hud.name}"),
+                        color = if (isSelected) LosSantosGold.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isSelected) LosSantosGold else Color.White.copy(alpha = 0.15f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isSelected) Icons.Default.Check else Icons.Default.Tune,
+                                contentDescription = null,
+                                tint = if (isSelected) LosSantosGold else Color.White.copy(alpha = 0.5f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Column {
+                                Text(hud.titleVi, color = if (isSelected) LosSantosGold else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text(hud.subtitleVi, color = Color.White.copy(alpha = 0.65f), fontSize = 10.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Xong", color = NeonEmerald, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
 }

@@ -12,6 +12,20 @@ enum class MouseControlMode(val titleVi: String, val badgeVi: String) {
     CAMERA_3D("Khóa Tâm 3D (Vuốt xoay góc nhìn 360°)", "TÂM 3D")
 }
 
+enum class InGameControlStyle(val titleVi: String, val subtitleVi: String) {
+    MINIMAL_TRANSPARENT("Tối Giản Trong Suốt", "Chỉ giữ phím cốt lõi, độ trong suốt cao, tầm nhìn thông thoáng"),
+    FLOATING_ARC("Cần Linh Hoạt & Cung Công Thái Học", "Cần xoay tự do chạm đâu cũng được + Cụm nút vòng cung ôm ngón cái"),
+    GESTURE_IMMERSIVE("Cử Chỉ Không Nút (Trống Trơn)", "100% không nút choán màn hình, vuốt di chuyển & chạm đúp tấn công"),
+    CLASSIC_GAMEPAD("Tay Cầm Console (ABXY)", "Bố cục tay cầm console kinh điển, cụm ABXY và nút vai L1/R1")
+}
+
+enum class TopHudStyle(val titleVi: String, val subtitleVi: String) {
+    FLOATING_FAB_DRAWER("Nút Nổi Tự Ẩn (Floating FAB)", "Nút tròn mini tự mờ đi sau 3s, chạm để bung khay công cụ"),
+    SLIM_PINNED_PILL("Thanh Thuốc Siêu Mỏng", "Dải kính mờ siêu nhỏ ép sát mép đỉnh màn hình"),
+    SLIDE_SIDE_PANEL("Ngăn Kéo Cạnh Viền", "Ghim tay nắm cạnh màn hình, vuốt nhẹ để mở bảng công cụ"),
+    IMMERSIVE_HIDDEN("Ẩn Tuyệt Đối (Toàn Màn Hình)", "Ẩn sạch 100%, vuốt từ mép trên hoặc bấm Back để xem trong 4s")
+}
+
 enum class MovementStyle(val titleVi: String) {
     ANALOG_STICK("Cần Analog 360°"),
     WASD_BUTTONS("4 Phím W / A / S / D Rời")

@@ -844,3 +844,394 @@ fun PedalButton(
         }
     }
 }
+
+/**
+ * Dynamic Floating Joystick:
+ * Touch anywhere inside the container to position the joystick base dynamically right under your thumb,
+ * keeping the screen 100% clean when idle.
+ */
+@Composable
+fun FloatingDynamicJoystick(
+    opacity: Float,
+    autoSprint: Boolean,
+    hapticsEnabled: Boolean,
+    onKeyStateChanged: (PcKeySpec, Boolean) -> Unit,
+    onVectorChanged: (Float, Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val haptic = LocalHapticFeedback.current
+    var centerPos by remember { mutableStateOf<Offset?>(null) }
+    var knobOffset by remember { mutableStateOf(Offset.Zero) }
+    var isDragging by remember { mutableStateOf(false) }
+    var isSprinting by remember { mutableStateOf(false) }
+
+    var wPressed by remember { mutableStateOf(false) }
+    var sPressed by remember { mutableStateOf(false) }
+    var aPressed by remember { mutableStateOf(false) }
+    var dPressed by remember { mutableStateOf(false) }
+    var shiftPressed by remember { mutableStateOf(false) }
+
+    fun updateDirectionalKeys(normX: Float, normY: Float, distanceRatio: Float) {
+        val threshold = 0.28f
+        val nextW = normY < -threshold
+        val nextS = normY > threshold
+        val nextA = normX < -threshold
+        val nextD = normX > threshold
+        val nextShift = autoSprint && distanceRatio > 0.84f && nextW
+
+        if (nextW != wPressed) {
+            wPressed = nextW
+            onKeyStateChanged(PcKeyCatalog.KEY_W, nextW)
+        }
+        if (nextS != sPressed) {
+            sPressed = nextS
+            onKeyStateChanged(PcKeyCatalog.KEY_S, nextS)
+        }
+        if (nextA != aPressed) {
+            aPressed = nextA
+            onKeyStateChanged(PcKeyCatalog.KEY_A, nextA)
+        }
+        if (nextD != dPressed) {
+            dPressed = nextD
+            onKeyStateChanged(PcKeyCatalog.KEY_D, nextD)
+        }
+        if (nextShift != shiftPressed) {
+            shiftPressed = nextShift
+            isSprinting = nextShift
+            onKeyStateChanged(PcKeyCatalog.KEY_SHIFT, nextShift)
+            if (hapticsEnabled && nextShift) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            }
+        }
+    }
+
+    fun releaseAll() {
+        if (wPressed) { wPressed = false; onKeyStateChanged(PcKeyCatalog.KEY_W, false) }
+        if (sPressed) { sPressed = false; onKeyStateChanged(PcKeyCatalog.KEY_S, false) }
+        if (aPressed) { aPressed = false; onKeyStateChanged(PcKeyCatalog.KEY_A, false) }
+        if (dPressed) { dPressed = false; onKeyStateChanged(PcKeyCatalog.KEY_D, false) }
+        if (shiftPressed) { shiftPressed = false; onKeyStateChanged(PcKeyCatalog.KEY_SHIFT, false) }
+        isSprinting = false
+        onVectorChanged(0f, 0f)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { releaseAll() }
+    }
+
+    val maxRadius = 56.dp
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .testTag("floating_dynamic_joystick_area")
+            .pointerInput(autoSprint, hapticsEnabled) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    val startPos = down.position
+                    centerPos = startPos
+                    knobOffset = Offset.Zero
+                    isDragging = true
+                    if (hapticsEnabled) {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+
+                    val maxRadiusPx = maxRadius.toPx()
+
+                    do {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: event.changes.firstOrNull()
+                        if (change != null && change.pressed) {
+                            change.consume()
+                            val curPos = change.position
+                            val rawDx = curPos.x - startPos.x
+                            val rawDy = curPos.y - startPos.y
+                            val dist = hypot(rawDx, rawDy)
+                            val angle = atan2(rawDy, rawDx)
+                            val clampedDist = dist.coerceAtMost(maxRadiusPx)
+                            val clampedX = clampedDist * cos(angle)
+                            val clampedY = clampedDist * sin(angle)
+                            knobOffset = Offset(clampedX, clampedY)
+
+                            val normX = (clampedX / maxRadiusPx).coerceIn(-1f, 1f)
+                            val normY = (clampedY / maxRadiusPx).coerceIn(-1f, 1f)
+                            val ratio = (clampedDist / maxRadiusPx).coerceIn(0f, 1f)
+
+                            onVectorChanged(normX, normY)
+                            updateDirectionalKeys(normX, normY, ratio)
+                        }
+                    } while (event.changes.any { it.pressed })
+
+                    isDragging = false
+                    knobOffset = Offset.Zero
+                    centerPos = null
+                    releaseAll()
+                }
+            }
+    ) {
+        val center = centerPos
+        if (isDragging && center != null) {
+            Canvas(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                val baseRadius = maxRadius.toPx()
+                val knobRadius = 24.dp.toPx()
+
+                // Base Outer Ring
+                drawCircle(
+                    color = NeonEmerald.copy(alpha = 0.22f * opacity),
+                    radius = baseRadius,
+                    center = center
+                )
+                drawCircle(
+                    color = (if (isSprinting) ViceMagenta else NeonEmerald).copy(alpha = 0.7f * opacity),
+                    radius = baseRadius,
+                    center = center,
+                    style = Stroke(width = 2.dp.toPx())
+                )
+
+                // Direction line from base center to knob
+                val knobPos = center + knobOffset
+                drawLine(
+                    color = (if (isSprinting) ViceMagenta else NeonEmerald).copy(alpha = 0.5f * opacity),
+                    start = center,
+                    end = knobPos,
+                    strokeWidth = 2.dp.toPx()
+                )
+
+                // Knob
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            (if (isSprinting) ViceMagenta else NeonEmerald).copy(alpha = 0.9f * opacity),
+                            CyberSurface.copy(alpha = 0.85f * opacity)
+                        ),
+                        center = knobPos,
+                        radius = knobRadius
+                    ),
+                    radius = knobRadius,
+                    center = knobPos
+                )
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.85f * opacity),
+                    radius = knobRadius,
+                    center = knobPos,
+                    style = Stroke(width = 2.dp.toPx())
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Compact round key button for Minimalist HUD.
+ * High transparency, small footprint, maximum screen visibility.
+ */
+@Composable
+fun CompactMiniKeyButton(
+    label: String,
+    keySpec: PcKeySpec,
+    sizeDp: Dp,
+    opacity: Float,
+    accentColor: Color,
+    hapticsEnabled: Boolean,
+    onKeyStateChanged: (PcKeySpec, Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    testTagName: String = "compact_mini_btn_${keySpec.id}"
+) {
+    val haptic = LocalHapticFeedback.current
+    var isPressed by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = modifier
+            .size(sizeDp)
+            .alpha(if (isPressed) 0.95f else opacity.coerceAtLeast(0.35f))
+            .clip(CircleShape)
+            .background(if (isPressed) accentColor.copy(alpha = 0.5f) else CyberSurface.copy(alpha = 0.45f))
+            .border(
+                width = if (isPressed) 2.dp else 1.2.dp,
+                color = if (isPressed) Color.White else accentColor.copy(alpha = 0.65f),
+                shape = CircleShape
+            )
+            .testTag(testTagName)
+            .pointerInput(keySpec, hapticsEnabled) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    isPressed = true
+                    if (hapticsEnabled) {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                    onKeyStateChanged(keySpec, true)
+                    do {
+                        val event = awaitPointerEvent()
+                    } while (event.changes.any { it.pressed })
+                    isPressed = false
+                    onKeyStateChanged(keySpec, false)
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (isPressed) Color.White else accentColor,
+            fontWeight = FontWeight.Bold,
+            fontSize = (sizeDp.value * 0.28f).sp
+        )
+    }
+}
+
+/**
+ * Classic Console Gamepad Diamond Cluster (ABXY Layout)
+ */
+@Composable
+fun ClassicGamepadAbxy(
+    scale: Float,
+    opacity: Float,
+    haptics: Boolean,
+    keyA: PcKeySpec, // Bottom - Space / Jump
+    keyB: PcKeySpec, // Right - Ctrl / Crouch
+    keyX: PcKeySpec, // Left - R / Reload
+    keyY: PcKeySpec, // Top - F / Vehicle
+    onKeyStateChanged: (PcKeySpec, Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val btnSize = (48 * scale).dp
+    val spacing = (10 * scale).dp
+
+    Box(
+        modifier = modifier
+            .size((140 * scale).dp)
+            .testTag("classic_gamepad_abxy_cluster"),
+        contentAlignment = Alignment.Center
+    ) {
+        // Y - Top (Vehicle)
+        Box(modifier = Modifier.align(Alignment.TopCenter)) {
+            CompactMiniKeyButton(
+                label = "Y",
+                keySpec = keyY,
+                sizeDp = btnSize,
+                opacity = opacity,
+                accentColor = LosSantosGold,
+                hapticsEnabled = haptics,
+                onKeyStateChanged = onKeyStateChanged,
+                testTagName = "gamepad_btn_y"
+            )
+        }
+        // A - Bottom (Jump)
+        Box(modifier = Modifier.align(Alignment.BottomCenter)) {
+            CompactMiniKeyButton(
+                label = "A",
+                keySpec = keyA,
+                sizeDp = btnSize,
+                opacity = opacity,
+                accentColor = NeonEmerald,
+                hapticsEnabled = haptics,
+                onKeyStateChanged = onKeyStateChanged,
+                testTagName = "gamepad_btn_a"
+            )
+        }
+        // X - Left (Reload/Punch)
+        Box(modifier = Modifier.align(Alignment.CenterStart)) {
+            CompactMiniKeyButton(
+                label = "X",
+                keySpec = keyX,
+                sizeDp = btnSize,
+                opacity = opacity,
+                accentColor = ElectricBlue,
+                hapticsEnabled = haptics,
+                onKeyStateChanged = onKeyStateChanged,
+                testTagName = "gamepad_btn_x"
+            )
+        }
+        // B - Right (Crouch)
+        Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+            CompactMiniKeyButton(
+                label = "B",
+                keySpec = keyB,
+                sizeDp = btnSize,
+                opacity = opacity,
+                accentColor = DangerRed,
+                hapticsEnabled = haptics,
+                onKeyStateChanged = onKeyStateChanged,
+                testTagName = "gamepad_btn_b"
+            )
+        }
+    }
+}
+
+/**
+ * Classic D-Pad cross for console layout.
+ */
+@Composable
+fun ClassicGamepadDpad(
+    scale: Float,
+    opacity: Float,
+    haptics: Boolean,
+    onKeyStateChanged: (PcKeySpec, Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val btnSize = (42 * scale).dp
+
+    Box(
+        modifier = modifier
+            .size((128 * scale).dp)
+            .testTag("classic_gamepad_dpad"),
+        contentAlignment = Alignment.Center
+    ) {
+        // Up
+        Box(modifier = Modifier.align(Alignment.TopCenter)) {
+            CompactMiniKeyButton(
+                label = "▲",
+                keySpec = PcKeyCatalog.KEY_UP,
+                sizeDp = btnSize,
+                opacity = opacity,
+                accentColor = Color.White,
+                hapticsEnabled = haptics,
+                onKeyStateChanged = onKeyStateChanged,
+                testTagName = "dpad_up"
+            )
+        }
+        // Down
+        Box(modifier = Modifier.align(Alignment.BottomCenter)) {
+            CompactMiniKeyButton(
+                label = "▼",
+                keySpec = PcKeyCatalog.KEY_DOWN,
+                sizeDp = btnSize,
+                opacity = opacity,
+                accentColor = Color.White,
+                hapticsEnabled = haptics,
+                onKeyStateChanged = onKeyStateChanged,
+                testTagName = "dpad_down"
+            )
+        }
+        // Left
+        Box(modifier = Modifier.align(Alignment.CenterStart)) {
+            CompactMiniKeyButton(
+                label = "◄",
+                keySpec = PcKeyCatalog.KEY_LEFT,
+                sizeDp = btnSize,
+                opacity = opacity,
+                accentColor = Color.White,
+                hapticsEnabled = haptics,
+                onKeyStateChanged = onKeyStateChanged,
+                testTagName = "dpad_left"
+            )
+        }
+        // Right
+        Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+            CompactMiniKeyButton(
+                label = "►",
+                keySpec = PcKeyCatalog.KEY_RIGHT,
+                sizeDp = btnSize,
+                opacity = opacity,
+                accentColor = Color.White,
+                hapticsEnabled = haptics,
+                onKeyStateChanged = onKeyStateChanged,
+                testTagName = "dpad_right"
+            )
+        }
+    }
+}
