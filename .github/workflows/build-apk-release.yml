@@ -61,7 +61,9 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-          if [ ! -f "my-upload-key.jks" ]; then
+          if [ -f "my-upload-key.jks.base64" ]; then
+            base64 -d my-upload-key.jks.base64 > my-upload-key.jks
+          elif [ ! -f "my-upload-key.jks" ]; then
             keytool -genkeypair -v \
               -keystore my-upload-key.jks \
               -storepass android123 \
@@ -72,6 +74,13 @@ jobs:
               -validity 10000 \
               -dname "CN=FivePlay Mobile,OU=Mobile,O=FivePlay,L=VN,S=VN,C=VN"
           fi
+
+      - name: Verify Keystore Signatures & Fingerprints
+        run: |
+          echo "=== RELEASE KEYSTORE FINGERPRINT (my-upload-key.jks) ==="
+          keytool -list -v -keystore my-upload-key.jks -storepass android123 -alias upload | grep -E "SHA1:|SHA256:"
+          echo "=== DEBUG KEYSTORE FINGERPRINT (debug.keystore) ==="
+          keytool -list -v -keystore debug.keystore -storepass android -alias androiddebugkey | grep -E "SHA1:|SHA256:"
 
       - name: Ensure .env exists from .env.example
         run: |
@@ -117,8 +126,11 @@ jobs:
           body: |
             ## FivePlay Mobile - Trình duyệt chơi GTA 5 trên fiveplay.lol
             ### File cài đặt APK:
-            - **`FivePlay-Mobile-Release-Signed.apk`**: Bản phát hành chính thức đã ký chứng chỉ (Khuyên dùng cài đặt trực tiếp lên điện thoại Android).
-            - **`FivePlay-Mobile-Debug.apk`**: Bản thử nghiệm Debug.
+            - **`FivePlay-Mobile-Release-Signed.apk`**: Bản phát hành chính thức đã ký chứng chỉ cố định (`my-upload-key.jks`, SHA-256: `CC:D2:85:85...`). Khuyên dùng cài đặt và cập nhật lâu dài.
+            - **`FivePlay-Mobile-Debug.apk`**: Bản thử nghiệm Debug ký bằng `debug.keystore`.
+            
+            > ⚠️ **LƯU Ý KHI CÀI ĐẶT / NÂNG CẤP ("Lỗi Chữ Ký Không Khớp" / "App Not Installed"):**
+            > Nếu bạn đang chuyển từ bản Debug sang bản Release (hoặc ngược lại), Android sẽ báo lỗi xung đột chữ ký. Bạn chỉ cần **Gỡ cài đặt (Uninstall) bản cũ một lần**, sau đó cài đặt bản Release này. Mọi bản phát hành tiếp theo đều đã được đồng bộ chữ ký vĩnh viễn, bạn có thể cập nhật đè bình thường.
             
             ### Tính năng nổi bật:
             - Kết nối trực tiếp máy chủ **https://fiveplay.lol** với Chrome Desktop User-Agent và bộ đệm WebGL tăng tốc độ khung hình.
